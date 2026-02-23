@@ -1,0 +1,7 @@
+greet(name) {
+    out "In function";
+};
+
+out "Before call";
+greet("test");
+out "After call";

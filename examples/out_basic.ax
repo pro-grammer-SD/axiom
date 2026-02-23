@@ -1,0 +1,13 @@
+// Test out() function
+out("Testing out function");
+out(42);
+out(true);
+out([1, 2, 3]);
+
+// Test boolean expressions
+let x = 5;
+if x > 3 {
+  out(true);
+} else {
+  out(false);
+}

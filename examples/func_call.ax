@@ -1,0 +1,6 @@
+greet(name) {
+    out "Hello, ";
+    out name;
+};
+
+greet("World");

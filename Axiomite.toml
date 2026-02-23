@@ -1,0 +1,10 @@
+[package]
+name = "axiom-project"
+version = "0.1.0"
+
+[env]
+AX_DEBUG = "true"
+AX_STRICT = "false"
+
+[dependencies]
+requires = []

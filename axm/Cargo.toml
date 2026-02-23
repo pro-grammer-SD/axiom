@@ -1,0 +1,42 @@
+[package]
+name = "axm"
+version = "0.1.0"
+edition = "2021"
+authors = ["Axiom Contributors"]
+license = "MIT"
+repository = "https://github.com/axiom-lang/axiom"
+
+[dependencies]
+tokio = { version = "1.36", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dashmap = "5.5"
+miette = { version = "5.10", features = ["fancy"] }
+thiserror = "1.0"
+clap = { version = "4.4", features = ["derive"] }
+rowan = "0.15"
+logos = "0.13"
+lalrpop-util = "0.20"
+dirs = "5"
+
+# Logic
+async-recursion = "1.0"
+arc-swap = "1"
+parking_lot = "0.12"
+colored = "2"
+toml = "0.8"
+lazy_static = "1.4"
+git2 = "0.20"
+camino = "1.1"
+crossbeam = "0.8"
+
+[lib]
+name = "axm"
+path = "src/lib.rs"
+
+[[bin]]
+name = "axm"
+path = "src/main.rs"
+
+[build-dependencies]
+lalrpop = "0.20"

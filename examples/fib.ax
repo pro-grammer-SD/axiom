@@ -1,0 +1,32 @@
+fun fib(n) {
+    if n == 0 {
+        ret 0;
+    }
+    if n == 1 {
+        ret 1;
+    }
+    ret fib(n - 1) + fib(n - 2);
+}
+
+let n = 35;
+let result = fib(n);
+
+out "=== Axiom Fibonacci Demo ===";
+out "Calculating fib(" n ")...";
+out "Result: " result;
+
+out "";
+out "Sequence:";
+
+fun print_seq(i, limit) {
+    if i == limit {
+        ret;
+    }
+    out "fib(" i ") = " fib(i);
+    print_seq(i + 1, limit);
+}
+
+print_seq(0, n + 1);
+
+out "";
+out "Demo Complete.";
