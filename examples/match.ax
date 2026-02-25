@@ -1,4 +1,0 @@
-match 1 {
-    1 => out "one",
-    _ => out "other",
-}
