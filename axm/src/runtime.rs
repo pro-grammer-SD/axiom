@@ -232,6 +232,16 @@ impl Runtime {
         // Register static intrinsic module maps (first-class 22 modules)
         intrinsics::register(&mut globals);
 
+        // Also ensure print function is registered (alias for compatibility)
+        globals.insert("print".into(), AxValue::Fun(Arc::new(AxCallable::Native {
+            name: "print".into(),
+            func: |args| {
+                let parts: Vec<String> = args.iter().map(|a| a.display()).collect();
+                println!("{}", parts.join(" "));
+                AxValue::Nil
+            },
+        })));
+
         Runtime { globals, classes: HashMap::new() }
     }
 
@@ -245,8 +255,15 @@ impl Runtime {
             self.register_decl(item);
         }
 
-        // Pass 2 — execute top-level statements
+        // Pass 1.5 — process load statements
         let mut env = Env::new();
+        for item in &items {
+            if let Item::LoadStmt { path, is_lib, .. } = item {
+                self.handle_load(path, *is_lib, &mut env)?;
+            }
+        }
+
+        // Pass 2 — execute top-level statements
         for item in &items {
             if let Item::Statement(stmt) = item {
                 self.exec_stmt(stmt, &mut env)?;
@@ -258,6 +275,60 @@ impl Runtime {
         // executed regardless.
         if let Some(main_fn) = self.globals.get("main").cloned() {
             self.call_value(main_fn, vec![], &mut env)?;
+        }
+
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // Load module resolution
+    // -----------------------------------------------------------------------
+
+    fn handle_load(&mut self, path: &str, is_lib: bool, env: &mut Env) -> Result<(), RuntimeError> {
+        use std::path::PathBuf;
+
+        let resolved_path = if is_lib {
+            // @user/repo format — resolve to ~/.axiomlibs/user/repo/lib.ax
+            let home_dir = dirs::home_dir().ok_or_else(|| RuntimeError::GenericError {
+                message: "Cannot determine home directory for @-style load".to_string(),
+                span: Default::default(),
+            })?;
+            let parts: Vec<&str> = path.trim_start_matches('@').split('/').collect();
+            if parts.len() != 2 {
+                return Err(RuntimeError::GenericError {
+                    message: format!("Invalid library path: {}. Use @user/repo format", path),
+                    span: Default::default(),
+                });
+            }
+            home_dir.join(".axiomlibs").join(parts[0]).join(parts[1]).join("lib.ax")
+        } else {
+            // Local file path
+            PathBuf::from(path)
+        };
+
+        // Read the file
+        let source = std::fs::read_to_string(&resolved_path).map_err(|e| RuntimeError::GenericError {
+            message: format!("Cannot load '{}': {}", resolved_path.display(), e),
+            span: Default::default(),
+        })?;
+
+        // Parse the loaded module
+        let mut parser = crate::Parser::new(&source, 0);
+        let loaded_items = parser.parse().map_err(|e| RuntimeError::GenericError {
+            message: format!("Parse error in loaded module '{}': {}", resolved_path.display(), e),
+            span: Default::default(),
+        })?;
+
+        // Register all declarations from the loaded module
+        for item in &loaded_items {
+            self.register_decl(item);
+        }
+
+        // Execute statements from the loaded module
+        for item in &loaded_items {
+            if let Item::Statement(stmt) = item {
+                self.exec_stmt(&stmt, env)?;
+            }
         }
 
         Ok(())
@@ -300,6 +371,10 @@ impl Runtime {
                 }
                 // Also expose the enum name itself
                 self.globals.insert(name.clone(), AxValue::Str(name.clone()));
+            }
+            Item::LoadStmt { .. } => {
+                // Load statements are processed at runtime, not at registration time
+                // Silently skip here; they will be handled during execution
             }
             _ => {}
         }
@@ -551,6 +626,18 @@ impl Runtime {
             }
 
             Expr::Call { function, arguments, .. } => {
+                // Special case: str() as a converter function
+                if let Expr::Identifier { name, .. } = &**function {
+                    if name == "str" {
+                        // Evaluate argument and convert to string
+                        if let Some(arg_expr) = arguments.first() {
+                            let arg = self.eval(arg_expr, env)?;
+                            return Ok(AxValue::Str(arg.display()));
+                        }
+                        return Ok(AxValue::Nil);
+                    }
+                }
+                
                 let func = self.eval(function, env)?;
                 let mut args = Vec::with_capacity(arguments.len());
                 for arg in arguments {
@@ -592,7 +679,7 @@ impl Runtime {
                     AxValue::Map(map) => {
                         // Module-like or dict-like member access
                         if let Some(v) = map.get(member) {
-                            return Ok(v.clone());
+                            return Ok((*v).clone());
                         }
                         Ok(AxValue::Nil)
                     }
@@ -773,7 +860,7 @@ impl Runtime {
 
             AxValue::Map(map) => {
                 if let Some(v) = map.get(method) {
-                    return self.call_value(v.clone(), args, env);
+                    return self.call_value((*v).clone(), args, env);
                 }
                 return Err(RuntimeError::GenericError {
                     message: format!("No method '{}' on Map", method),

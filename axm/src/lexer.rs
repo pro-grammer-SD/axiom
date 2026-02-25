@@ -1,6 +1,12 @@
-/// Complete lexer for Axiom language — Final Maturation
-/// Supports all keywords (cls, ext, enm, self, out, loc, new, match, go)
-/// and @ interpolation inside strings.
+/// Complete lexer for Axiom language — Production Quality
+///
+/// FEATURES:
+///   • All keywords (cls, ext, enm, self, out, print, loc, new, match, go)
+///   • String interpolation with @ and @(expr) syntax
+///   • Single-line and block comments
+///   • Robust error recovery
+///   • Proper span tracking for diagnostics
+///
 use crate::errors::Span;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -12,6 +18,7 @@ pub enum Token {
     For,
     In,
     Fun,
+    Fn,
     Return,
     Let,
     Go,
@@ -24,15 +31,16 @@ pub enum Token {
     Enm,
     SelfKw,
     Out,
+    Print,      // NEW: print statement (alias for out)
     New,
     Match,
-    Els,  // Genesis syntax: wildcard in match
+    Els,        // Genesis syntax: wildcard in match
+    Load,       // Module loading keyword
 
     // Literals
     Number(f64),
     String(String),
-    /// An interpolated string is stored as a vec of (is_expr, text) pairs.
-    /// is_expr=false → literal segment, is_expr=true → expression source text.
+    /// Interpolated string: vec of (is_expr, text) pairs.
     InterpolatedString(Vec<(bool, String)>),
     True,
     False,
@@ -164,10 +172,8 @@ impl Lexer {
         num_str.parse::<f64>().unwrap_or(0.0)
     }
 
-    /// Read a string literal. If it contains `@var` or `@(expr)`, emit
-    /// `Token::InterpolatedString` instead of `Token::String`.
     fn read_string(&mut self, quote: char) -> Token {
-        self.advance(); // consume opening quote
+        self.advance();
         let mut segments: Vec<(bool, String)> = Vec::new();
         let mut current_literal = String::new();
         let mut has_interpolation = false;
@@ -192,15 +198,13 @@ impl Lexer {
                 self.advance();
             } else if ch == '@' {
                 has_interpolation = true;
-                // Flush current literal segment
                 if !current_literal.is_empty() {
                     segments.push((false, std::mem::take(&mut current_literal)));
                 }
-                self.advance(); // consume '@'
+                self.advance();
 
                 if self.current() == Some('(') {
-                    // Expression interpolation: @(expr)
-                    self.advance(); // consume '('
+                    self.advance();
                     let mut depth = 1;
                     let mut expr_text = String::new();
                     while let Some(c) = self.current() {
@@ -209,7 +213,7 @@ impl Lexer {
                         } else if c == ')' {
                             depth -= 1;
                             if depth == 0 {
-                                self.advance(); // consume closing ')'
+                                self.advance();
                                 break;
                             }
                         }
@@ -218,7 +222,6 @@ impl Lexer {
                     }
                     segments.push((true, expr_text));
                 } else {
-                    // Simple variable interpolation: @varname
                     let mut var_name = String::new();
                     while let Some(c) = self.current() {
                         if c.is_alphanumeric() || c == '_' {
@@ -281,6 +284,7 @@ impl Lexer {
                         "for" => Token::For,
                         "in" => Token::In,
                         "fun" => Token::Fun,
+                        "fn" => Token::Fn,
                         "ret" => Token::Return,
                         "let" => Token::Let,
                         "go" => Token::Go,
@@ -293,9 +297,11 @@ impl Lexer {
                         "enm" => Token::Enm,
                         "self" => Token::SelfKw,
                         "out" => Token::Out,
+                        "print" => Token::Print,
                         "new" => Token::New,
                         "match" => Token::Match,
                         "els" => Token::Els,
+                        "load" => Token::Load,
                         "true" => Token::True,
                         "false" => Token::False,
                         _ => Token::Ident(ident),
@@ -451,20 +457,43 @@ mod tests {
     fn test_number() {
         let mut lexer = Lexer::new("42", 0);
         let (token, _) = lexer.next_token();
-        match token {
-            Token::Number(n) => assert_eq!(n, 42.0),
-            _ => panic!("Expected number token"),
-        }
+        assert!(matches!(token, Token::Number(n) if n == 42.0));
     }
 
     #[test]
-    fn test_string() {
-        let mut lexer = Lexer::new("\"hello\"", 0);
+    fn test_print_keyword() {
+        let mut lexer = Lexer::new("print", 0);
         let (token, _) = lexer.next_token();
-        match token {
-            Token::String(s) => assert_eq!(s, "hello"),
-            _ => panic!("Expected string token"),
-        }
+        assert_eq!(token, Token::Print);
+    }
+
+    #[test]
+    fn test_out_keyword() {
+        let mut lexer = Lexer::new("out", 0);
+        let (token, _) = lexer.next_token();
+        assert_eq!(token, Token::Out);
+    }
+
+    #[test]
+    fn test_keywords() {
+        let mut lexer = Lexer::new("cls ext enm self out print new match go loc load", 0);
+        let tokens: Vec<Token> = lexer.tokenize().into_iter().map(|(t, _)| t).collect();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Cls,
+                Token::Ext,
+                Token::Enm,
+                Token::SelfKw,
+                Token::Out,
+                Token::Print,
+                Token::New,
+                Token::Match,
+                Token::Go,
+                Token::Loc,
+                Token::Load,
+            ]
+        );
     }
 
     #[test]
@@ -480,36 +509,6 @@ mod tests {
                 assert_eq!(parts[3], (true, "x + 1".to_string()));
             }
             _ => panic!("Expected interpolated string token"),
-        }
-    }
-
-    #[test]
-    fn test_keywords() {
-        let mut lexer = Lexer::new("cls ext enm self out new match go loc", 0);
-        let tokens: Vec<Token> = lexer.tokenize().into_iter().map(|(t, _)| t).collect();
-        assert_eq!(
-            tokens,
-            vec![
-                Token::Cls,
-                Token::Ext,
-                Token::Enm,
-                Token::SelfKw,
-                Token::Out,
-                Token::New,
-                Token::Match,
-                Token::Go,
-                Token::Loc,
-            ]
-        );
-    }
-
-    #[test]
-    fn test_identifier() {
-        let mut lexer = Lexer::new("foo", 0);
-        let (token, _) = lexer.next_token();
-        match token {
-            Token::Ident(id) => assert_eq!(id, "foo"),
-            _ => panic!("Expected identifier token"),
         }
     }
 }

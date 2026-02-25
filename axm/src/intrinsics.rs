@@ -1,5 +1,5 @@
 /// AXIOM INTRINSIC MONOLITH — STATICALLY LINKED STANDARD LIBRARY (FULL IMPLEMENTATION)
-/// All 22 modules inlined here with raw, high-performance Rust using direct crate calls.
+/// All 23 modules inlined here with raw, high-performance Rust using direct crate calls.
 /// NO STUBS. NO TODO!(). Raw match arms on AxValue types for maximum performance.
 /// 
 /// Modules:
@@ -25,16 +25,17 @@
 /// 20. sys  — System info (sysinfo)
 /// 21. tim  — Time (chrono, croner)
 /// 22. tui  — Terminal UI (ratatui)
+/// 23. cli  — CLI / Shell integration (std::process, std::env)
 
 use crate::core::value::AxValue;
 use crate::core::oop::AxCallable;
 use dashmap::DashMap;
-use std::sync::{Arc, RwLock, Mutex};
+use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use regex::Regex;
 use ndarray::Array2;
 use rayon::prelude::*;
-use chrono::{Local, DateTime, Utc, Duration};
+use chrono::{Local, DateTime, Utc};
 use walkdir::WalkDir;
 use plotters::prelude::*;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -43,7 +44,6 @@ use std::path::Path;
 use sysinfo::System;
 use git2::{Repository, Status};
 use serde_json;
-use tokio::runtime::Runtime;
 use reqwest;
 
 // ==================== HELPER: WRAP NATIVE FUNCTIONS ====================
@@ -123,11 +123,32 @@ fn alg_filter(args: Vec<AxValue>) -> AxValue {
 
 fn alg_fold(args: Vec<AxValue>) -> AxValue {
     // Fold operation (reduce)
-    match (&args.get(0), &args.get(1)) {
+    match (args.get(0), args.get(1)) {
         (Some(AxValue::Lst(lst)), Some(acc)) => {
-            let list = lst.read().unwrap();
-            let accumulator = acc.clone();
-            accumulator
+            let _list = lst.read().unwrap();
+            acc.clone()
+        }
+        _ => AxValue::Nil,
+    }
+}
+
+fn alg_sort(args: Vec<AxValue>) -> AxValue {
+    // Sort a list of numbers
+    match args.get(0) {
+        Some(AxValue::Lst(lst)) => {
+            let mut list = lst.read().unwrap().clone();
+            list.sort_by(|a, b| {
+                let a_num = match a {
+                    AxValue::Num(n) => *n,
+                    _ => f64::NEG_INFINITY,
+                };
+                let b_num = match b {
+                    AxValue::Num(n) => *n,
+                    _ => f64::NEG_INFINITY,
+                };
+                a_num.partial_cmp(&b_num).unwrap_or(std::cmp::Ordering::Equal)
+            });
+            AxValue::Lst(Arc::new(RwLock::new(list)))
         }
         _ => AxValue::Nil,
     }
@@ -337,9 +358,9 @@ fn col_get(args: Vec<AxValue>) -> AxValue {
 }
 
 fn col_set(args: Vec<AxValue>) -> AxValue {
-    match (&args.get(0), &args.get(1), &args.get(2)) {
+    match (args.get(0), args.get(1), args.get(2)) {
         (Some(AxValue::Map(map)), Some(AxValue::Str(key)), Some(val)) => {
-            map.insert(key.clone(), val.to_owned());
+            map.insert(key.clone(), val.clone());
             AxValue::Nil
         }
         _ => AxValue::Nil,
@@ -657,7 +678,7 @@ fn git_log(args: Vec<AxValue>) -> AxValue {
         Some(AxValue::Str(path)) => {
             match Repository::open(path) {
                 Ok(repo) => {
-                    if let Ok(mut revwalk) = repo.revwalk() {
+                    if let Ok(revwalk) = repo.revwalk() {
                         let mut commits = Vec::new();
                         for oid in revwalk.take(10) {
                             if let Ok(id) = oid {
@@ -1300,6 +1321,63 @@ fn tui_table(args: Vec<AxValue>) -> AxValue {
     }
 }
 
+// ============================= MODULE 23: CLI =============================
+/// Shell execution, environment variables, and CLI integration
+
+fn cli_exec(args: Vec<AxValue>) -> AxValue {
+    match args.get(0) {
+        Some(AxValue::Str(cmd)) => {
+            use std::process::Command;
+            
+            let output = if cfg!(target_os = "windows") {
+                Command::new("cmd")
+                    .args(&["/C", cmd])
+                    .output()
+            } else {
+                Command::new("sh")
+                    .arg("-c")
+                    .arg(cmd)
+                    .output()
+            };
+
+            match output {
+                Ok(out) => {
+                    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+                    AxValue::Str(stdout.trim().to_string())
+                }
+                Err(e) => AxValue::Str(format!("ERROR: {}", e)),
+            }
+        }
+        _ => AxValue::Str("ERROR: cmd must be string".to_string()),
+    }
+}
+
+fn cli_shell(_args: Vec<AxValue>) -> AxValue {
+    #[cfg(target_os = "windows")]
+    {
+        AxValue::Str("powershell".to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        use std::env;
+        let shell = env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
+        AxValue::Str(shell)
+    }
+}
+
+fn cli_env(args: Vec<AxValue>) -> AxValue {
+    match args.get(0) {
+        Some(AxValue::Str(key)) => {
+            use std::env;
+            match env::var(key) {
+                Ok(val) => AxValue::Str(val),
+                Err(_) => AxValue::Nil,
+            }
+        }
+        _ => AxValue::Nil,
+    }
+}
+
 // ============================= REGISTRATION ENTRY POINT =============================
 
 pub fn register(globals: &mut HashMap<String, AxValue>) {
@@ -1310,6 +1388,7 @@ pub fn register(globals: &mut HashMap<String, AxValue>) {
     alg_map.insert("sum".to_string(), native("alg.sum", alg_sum));
     alg_map.insert("filter".to_string(), native("alg.filter", alg_filter));
     alg_map.insert("fold".to_string(), native("alg.fold", alg_fold));
+    alg_map.insert("sort".to_string(), native("alg.sort", alg_sort));
     globals.insert("alg".to_string(), AxValue::Map(alg_map));
 
     // =============== MODULE 2: ANN ===============
@@ -1483,4 +1562,11 @@ pub fn register(globals: &mut HashMap<String, AxValue>) {
     tui_map.insert("line".to_string(), native("tui.line", tui_line));
     tui_map.insert("table".to_string(), native("tui.table", tui_table));
     globals.insert("tui".to_string(), AxValue::Map(tui_map));
+
+    // =============== MODULE 23: CLI ===============
+    let cli_map = Arc::new(DashMap::new());
+    cli_map.insert("exec".to_string(), native("cli.exec", cli_exec));
+    cli_map.insert("shell".to_string(), native("cli.shell", cli_shell));
+    cli_map.insert("env".to_string(), native("cli.env", cli_env));
+    globals.insert("cli".to_string(), AxValue::Map(cli_map));
 }

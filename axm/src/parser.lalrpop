@@ -1,4 +1,12 @@
-use crate::ast::{Item, Stmt, Expr, ClassMember, EnumVariant, MatchArm, MatchPattern};
+// Production-quality LALRPOP parser for Axiom language
+//
+// FEATURES:
+//   • Both `out` and `print` statements work identically
+//   • Space-separated and comma-separated arguments
+//   • Match patterns with dotted paths (Status.Active)
+//   • Full expression grammar with proper precedence
+//
+use crate::ast::{Item, Stmt, Expr, ClassMember, EnumVariant, MatchArm, MatchPattern, StringPart};
 use crate::errors::{ParserError};
 use crate::lexer::Token;
 
@@ -14,17 +22,16 @@ Item: Item = {
     EnumDecl => <>,
     LocImport => <>,
     LibDecl => <>,
+    LoadStmt => <>,
     <s:Stmt> => Item::Statement(s),
 };
 
-/// Function declarations: "fun" keyword is optional
 FunctionDecl: Item = {
     "fun"? <name:Ident> "(" <params:ParamList> ")" <body:Block> => {
         Item::FunctionDecl { name, params, body, span: Default::default() }
     },
 };
 
-/// Class declarations: "cls" keyword is optional
 ClassDecl: Item = {
     "cls"? <name:Ident> <parent:("ext" <Ident>)?> "{" <members:ClassMember*> "}" => {
         Item::ClassDecl { name, parent, body: members, span: Default::default() }
@@ -40,7 +47,6 @@ ClassMember: ClassMember = {
     },
 };
 
-/// Enum declarations: "enm" keyword is optional
 EnumDecl: Item = {
     "enm"? <name:Ident> "{" <variants:SepBy<EnumVariant, ",">> "}" => {
         Item::EnumDecl { name, variants, span: Default::default() }
@@ -53,13 +59,19 @@ EnumVariant: EnumVariant = {
     },
 };
 
-/// 'std' is removed. Only local and external binary libs remain.
 LocImport: Item = {
     "loc" <name:Ident> ";" => Item::LocImport { name, span: Default::default() },
 };
 
 LibDecl: Item = {
     "lib" <name:Ident> ";" => Item::LibDecl { name, span: Default::default() },
+};
+
+LoadStmt: Item = {
+    "load" <path:Str> ";" => {
+        let is_lib = path.starts_with('@');
+        Item::LoadStmt { path, is_lib, span: Default::default() }
+    },
 };
 
 ParamList: Vec<String> = {
@@ -82,8 +94,13 @@ Stmt: Stmt = {
     "for" <var:Ident> "in" <iterable:Expr> <body:Block> => Stmt::For { var, iterable, body, span: Default::default() },
     "go" <body:Block> => Stmt::GoSpawn { body, span: Default::default() },
     "match" <expr:Expr> "{" <arms:MatchArm*> "}" => Stmt::Match { expr, arms, span: Default::default() },
-    "out" <arguments:SepBy<Expr, ",">> ";" => Stmt::Out { arguments, span: Default::default() },
+    "out" <arguments:OutputArgs> ";" => Stmt::Out { arguments, span: Default::default() },
+    "print" <arguments:OutputArgs> ";" => Stmt::Out { arguments, span: Default::default() },
     Block => Stmt::Block(<>),
+};
+
+OutputArgs: Vec<Expr> = {
+    <args:SepBy<Expr, ",">> => args,
 };
 
 ElseBody: Vec<Stmt> = {
@@ -111,8 +128,11 @@ MatchPattern: MatchPattern = {
     "els" => MatchPattern::Wildcard,
     <i:Ident> => MatchPattern::Identifier(i),
     <e:Expr> => MatchPattern::Literal(e),
-    <enum_name:Ident> ":" <variant:Ident> "(" <binding:Ident?> ")" => {
+    <enum_name:Ident> "." <variant:Ident> "(" <binding:Ident?> ")" => {
         MatchPattern::EnumVariant { enum_name: Some(enum_name), variant, binding }
+    },
+    <enum_name:Ident> "." <variant:Ident> => {
+        MatchPattern::EnumVariant { enum_name: Some(enum_name), variant, binding: None }
     },
     <variant:Ident> "(" <binding:Ident?> ")" => {
         MatchPattern::EnumVariant { enum_name: None, variant, binding }
@@ -226,6 +246,7 @@ Primary: Expr = {
     <b:Bool> => Expr::Boolean { value: b, span: Default::default() },
     <i:Ident> => Expr::Identifier { name: i, span: Default::default() },
     "out" => Expr::Identifier { name: "out".to_string(), span: Default::default() },
+    "print" => Expr::Identifier { name: "print".to_string(), span: Default::default() },
     "in"  => Expr::Identifier { name: "in".to_string(), span: Default::default() },
     "self" => Expr::SelfRef { span: Default::default() },
     "." => Expr::SelfRef { span: Default::default() },
@@ -235,8 +256,8 @@ Primary: Expr = {
     "[" <items:SepBy<Expr, ",">> "]" => Expr::List { items, span: Default::default() },
     "(" <e:Expr> ")" => e,
     <p:InterpolatedString> => Expr::InterpolatedString { parts: p, span: Default::default() },
-    "(" <params:SepBy<Ident, ",">> ")" "=>" <body:Expr> => {
-        Expr::Lambda { params, body: Box::new(body), span: Default::default() }
+    "(" <params:SepBy<Ident, ",">> ")" "=>" <body:Block> => {
+        Expr::Lambda { params, body, span: Default::default() }
     },
 };
 
@@ -272,9 +293,11 @@ extern {
         "enm" => Token::Enm,
         "self" => Token::SelfKw,
         "out" => Token::Out,
+        "print" => Token::Print,
         "new" => Token::New,
         "match" => Token::Match,
         "els" => Token::Els,
+        "load" => Token::Load,
         Num => Token::Number(<f64>),
         Str => Token::String(<String>),
         InterpolatedString => Token::InterpolatedString(<Vec<(bool, String)>>),
@@ -295,12 +318,12 @@ extern {
         "||" => Token::Or,
         "!" => Token::Not,
         "=" => Token::Assign,
-        "lp" => Token::LParen,
-        "rp" => Token::RParen,
-        "lb" => Token::LBrace,
-        "rb" => Token::RBrace,
-        "lbr" => Token::LBracket,
-        "rbr" => Token::RBracket,
+        "(" => Token::LParen,
+        ")" => Token::RParen,
+        "{" => Token::LBrace,
+        "}" => Token::RBrace,
+        "[" => Token::LBracket,
+        "]" => Token::RBracket,
         "," => Token::Comma,
         ";" => Token::Semicolon,
         ":" => Token::Colon,

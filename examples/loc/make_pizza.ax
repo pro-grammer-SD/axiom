@@ -1,0 +1,2 @@
+load pizza_factory;
+make_pizza(pepperoni);

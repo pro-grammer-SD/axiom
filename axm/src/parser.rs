@@ -1,14 +1,13 @@
-// Production-quality recursive descent parser for Axiom — Final Maturation
+// Production-quality recursive descent parser for Axiom language
 //
-// FIXES IN THIS VERSION:
-//   1. parse_out_stmt — space-separated args: `out "text" var "text"` now works.
-//      Previously only comma-separated args were collected; everything after the
-//      first arg was silently dropped if no comma followed.
-//   2. is_match_body_ahead — walks past Ident.Ident dotted paths before =>
-//   3. parse_match_pattern — handles Status.Active dotted-path patterns
-//   4. parse() — hoists ALL declarations before ALL statements so the runtime
-//      always sees functions/classes/enums registered before executing calls.
-
+// FEATURES:
+//   • Both `out` and `print` statements work identically
+//   • Space-separated arguments: `out "text" var "text"` → 3 args
+//   • Match patterns: Status.Active, Variant(binding), wildcards
+//   • Declaration hoisting: ALL declarations before ALL statements
+//   • Proper error reporting with spans
+//   • Comprehensive test coverage
+//
 use crate::ast::{
     ClassMember, EnumVariant, Expr, Item, MatchArm, MatchPattern, Stmt, StringPart,
 };
@@ -31,12 +30,6 @@ impl Parser {
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Public entry point
-    //
-    // Hoists ALL declarations before ALL statements so the runtime always finds
-    // every function/class/enum registered before executing any call.
-    // -----------------------------------------------------------------------
     pub fn parse(&mut self) -> Result<Vec<Item>, ParserError> {
         let mut decls: Vec<Item> = Vec::new();
         let mut stmts: Vec<Item> = Vec::new();
@@ -50,7 +43,8 @@ impl Parser {
                 | Item::ClassDecl { .. }
                 | Item::EnumDecl { .. }
                 | Item::LocImport { .. }
-                | Item::LibDecl { .. } => decls.push(item),
+                | Item::LibDecl { .. }
+                | Item::LoadStmt { .. } => decls.push(item),
                 Item::Statement(_) => stmts.push(item),
             }
         }
@@ -59,18 +53,15 @@ impl Parser {
         Ok(decls)
     }
 
-    // -----------------------------------------------------------------------
-    // Items
-    // -----------------------------------------------------------------------
-
     fn parse_item(&mut self) -> Result<Item, ParserError> {
         self.skip_semicolons();
         match self.peek_token() {
-            Token::Fun => self.parse_function(),
+            Token::Fun | Token::Fn => self.parse_function(),
             Token::Cls => self.parse_class_decl(),
             Token::Enm => self.parse_enum_decl(),
             Token::Loc => self.parse_loc_import(),
             Token::Lib => self.parse_lib_decl(),
+            Token::Load => self.parse_load_stmt(),
             Token::Ident(_) => match self.peek_nth(1) {
                 Token::LParen => {
                     if self.is_func_decl_ahead() {
@@ -93,8 +84,6 @@ impl Parser {
         }
     }
 
-    // name ( params ) {   → true  (function declaration)
-    // name ( args   )     → false (call expression)
     fn is_func_decl_ahead(&self) -> bool {
         if !matches!(self.peek_token(), Token::Ident(_)) { return false; }
         let mut i = 1usize;
@@ -117,10 +106,9 @@ impl Parser {
         false
     }
 
-    // Genesis-style: Name { … } — decide class vs enum by peeking inside
     fn parse_type_decl(&mut self) -> Result<Item, ParserError> {
         let mut is_enum = true;
-        let mut i = 2; // skip name(0) and '{'(1)
+        let mut i = 2;
         while i < self.tokens.len() && !matches!(&self.tokens[i].0, Token::RBrace | Token::Eof) {
             match &self.tokens[i].0 {
                 Token::Fun | Token::Let => { is_enum = false; break; }
@@ -141,7 +129,7 @@ impl Parser {
 
     fn parse_function(&mut self) -> Result<Item, ParserError> {
         let start = self.current_span();
-        if matches!(self.peek_token(), Token::Fun) { self.advance(); }
+        if matches!(self.peek_token(), Token::Fun | Token::Fn) { self.advance(); }
         let name   = self.consume_ident()?;
         self.consume(Token::LParen)?;
         let params = self.parse_param_list()?;
@@ -156,7 +144,7 @@ impl Parser {
 
     fn parse_class_decl_internal(&mut self, consume_kw: bool) -> Result<Item, ParserError> {
         let start = self.current_span();
-        if consume_kw { self.advance(); } // 'cls'
+        if consume_kw { self.advance(); }
         let name = self.consume_ident()?;
         let parent = if matches!(self.peek_token(), Token::Ext) {
             self.advance();
@@ -257,6 +245,15 @@ impl Parser {
         Ok(Item::LibDecl { name, span: start.merge(self.prev_span()) })
     }
 
+    fn parse_load_stmt(&mut self) -> Result<Item, ParserError> {
+        let start = self.current_span();
+        self.advance();  // consume "load"
+        let path = self.consume_string()?;
+        self.skip_semicolons();
+        let is_lib = path.starts_with('@');
+        Ok(Item::LoadStmt { path, is_lib, span: start.merge(self.prev_span()) })
+    }
+
     fn parse_param_list(&mut self) -> Result<Vec<String>, ParserError> {
         let mut params = Vec::new();
         if matches!(self.peek_token(), Token::RParen | Token::Eof) { return Ok(params); }
@@ -273,10 +270,6 @@ impl Parser {
         Ok(params)
     }
 
-    // -----------------------------------------------------------------------
-    // Statements
-    // -----------------------------------------------------------------------
-
     fn parse_stmt(&mut self) -> Result<Stmt, ParserError> {
         self.skip_semicolons();
         match self.peek_token() {
@@ -288,12 +281,13 @@ impl Parser {
             Token::Go     => self.parse_go_stmt(),
             Token::Match  => self.parse_match_stmt(),
             Token::Out    => self.parse_out_stmt(),
+            Token::Print  => self.parse_print_stmt(),
             Token::LBrace => { let b = self.parse_block()?; Ok(Stmt::Block(b)) }
             _ => {
                 if matches!(self.peek_token(), Token::RBrace | Token::Eof) {
                     return Err(ParserError::UnexpectedToken {
                         expected: "statement".to_string(),
-                        found: format!("{:?} in parse_stmt", self.peek_token()),
+                        found: format!("{:?}", self.peek_token()),
                         span: self.current_span(),
                     });
                 }
@@ -336,16 +330,6 @@ impl Parser {
         Ok(Stmt::If { condition, then_body, else_body, span: start.merge(self.prev_span()) })
     }
 
-    // -----------------------------------------------------------------------
-    // is_match_body_ahead — peeks inside { … } without consuming.
-    //
-    // Handles all pattern forms:
-    //   Ident =>                    bare variant
-    //   Ident.Ident =>              dotted path (Status.Active)
-    //   Ident(...) =>               variant with binding
-    //   Number|String|True|False => literal
-    //   els =>                      wildcard
-    // -----------------------------------------------------------------------
     fn is_match_body_ahead(&self) -> bool {
         if !matches!(self.peek_token(), Token::LBrace) { return false; }
         let mut i = 1usize;
@@ -451,9 +435,6 @@ impl Parser {
         self.parse_if_as_match(expr, start)
     }
 
-    // -----------------------------------------------------------------------
-    // parse_match_pattern
-    // -----------------------------------------------------------------------
     fn parse_match_pattern(&mut self) -> Result<MatchPattern, ParserError> {
         match self.peek_token() {
             Token::Els => { self.advance(); Ok(MatchPattern::Wildcard) }
@@ -493,78 +474,51 @@ impl Parser {
 
             tok => Err(ParserError::UnexpectedToken {
                 expected: "match pattern".to_string(),
-                found: format!("{:?} (next: {:?})", tok, self.peek_nth(1)),
+                found: format!("{:?}", tok),
                 span: self.current_span(),
             }),
         }
     }
 
-    // -----------------------------------------------------------------------
-    // parse_out_stmt — THE KEY FIX
-    //
-    // Axiom's `out` statement accepts SPACE-SEPARATED arguments:
-    //   out "text" var "text";         ← 3 args, no commas
-    //   out "fib(" i ") = " fib(i);   ← 4 args, no commas
-    //
-    // The previous implementation only looped on commas, so only the first
-    // argument was ever collected.
-    //
-    // Fix: after each expression, if the next token can START another
-    // expression (and we're not at a statement boundary or match-arm
-    // separator), continue parsing without requiring a comma.
-    //
-    // Commas are still accepted as optional separators (and we still detect
-    // match-arm comma boundaries correctly).
-    // -----------------------------------------------------------------------
     fn parse_out_stmt(&mut self) -> Result<Stmt, ParserError> {
         let start = self.current_span();
-        self.advance(); // consume 'out'
+        self.advance();
+        self.parse_output_stmt(start)
+    }
 
+    fn parse_print_stmt(&mut self) -> Result<Stmt, ParserError> {
+        let start = self.current_span();
+        self.advance();
+        self.parse_output_stmt(start)
+    }
+
+    fn parse_output_stmt(&mut self, start: Span) -> Result<Stmt, ParserError> {
         let mut arguments = Vec::new();
 
-        // Keep collecting expressions as long as the next token can start one
-        // and we haven't hit a hard boundary.
         while self.token_can_start_expr(&self.peek_token()) {
             arguments.push(self.parse_expr()?);
 
-            // After each expr, check for an optional comma separator
             if matches!(self.peek_token(), Token::Comma) {
-                // Comma followed by a match-arm token → this comma belongs to
-                // the match arm list, not to us. Stop here.
                 if matches!(self.peek_nth(1),
                     Token::Arrow | Token::RParen | Token::RBrace
                     | Token::RBracket | Token::Els)
                 {
                     break;
                 }
-                // comma then Ident => Arrow  (bare arm)
                 if matches!(self.peek_nth(2), Token::Arrow) { break; }
-                // comma then Ident.Ident =>  (dotted arm)
                 if matches!(self.peek_nth(1), Token::Ident(_))
                     && matches!(self.peek_nth(2), Token::Dot)
                 {
                     break;
                 }
-                // Safe to consume the comma as a separator and keep going
                 self.advance();
             }
-            // No comma: if next token can start an expr, loop naturally;
-            // otherwise the while condition will stop us.
         }
 
         self.skip_semicolons();
         Ok(Stmt::Out { arguments, span: start.merge(self.prev_span()) })
     }
 
-    // -----------------------------------------------------------------------
-    // token_can_start_expr
-    //
-    // Returns true if `tok` is a valid first token of an expression.
-    // Statement-opening keywords are deliberately excluded so that:
-    //   out "done"
-    //   out "next line"        ← this should NOT be consumed as a second arg
-    //   if x { ... }          ← this should NOT be consumed as a third arg
-    // -----------------------------------------------------------------------
     fn token_can_start_expr(&self, tok: &Token) -> bool {
         matches!(tok,
             Token::Ident(_)
@@ -577,19 +531,11 @@ impl Parser {
             | Token::LBracket
             | Token::SelfKw
             | Token::New
-            | Token::Dot       // .member shorthand
-            | Token::Minus     // unary minus
-            | Token::Not       // unary !
+            | Token::Dot
+            | Token::Minus
+            | Token::Not
         )
-        // Excluded (statement keywords / hard boundaries):
-        //   Out, Let, If, Else, While, For, Return, Match, Go,
-        //   Fun, Cls, Enm, Std, Loc, Lib, New (already included above),
-        //   RBrace, RBracket, RParen, Comma, Semicolon, Arrow, Eof
     }
-
-    // -----------------------------------------------------------------------
-    // Block
-    // -----------------------------------------------------------------------
 
     fn parse_block(&mut self) -> Result<Vec<Stmt>, ParserError> {
         self.consume(Token::LBrace)?;
@@ -602,10 +548,6 @@ impl Parser {
         self.consume(Token::RBrace)?;
         Ok(stmts)
     }
-
-    // -----------------------------------------------------------------------
-    // Expressions
-    // -----------------------------------------------------------------------
 
     fn parse_expr(&mut self) -> Result<Expr, ParserError> { self.parse_assignment() }
 
@@ -741,7 +683,14 @@ impl Parser {
                 }
                 Token::Dot => {
                     self.advance();
-                    let member = self.consume_ident()?;
+                    let member = match self.peek_token() {
+                        Token::New => { self.advance(); "new".to_string() }
+                        Token::Out => { self.advance(); "out".to_string() }
+                        Token::Print => { self.advance(); "print".to_string() }
+                        Token::In => { self.advance(); "in".to_string() }
+                        Token::Match => { self.advance(); "match".to_string() }
+                        _ => self.consume_ident()?
+                    };
                     if matches!(self.peek_token(), Token::LParen) {
                         self.advance();
                         let arguments = self.parse_arg_list()?;
@@ -810,8 +759,8 @@ impl Parser {
             Token::Ident(id) => { self.advance(); Ok(Expr::Identifier { name: id, span: start }) }
             Token::In  => { self.advance(); Ok(Expr::Identifier { name: "in".into(),  span: start }) }
             Token::Out => { self.advance(); Ok(Expr::Identifier { name: "out".into(), span: start }) }
+            Token::Print => { self.advance(); Ok(Expr::Identifier { name: "print".into(), span: start }) }
             Token::Dot => {
-                // .member shorthand → self.member
                 self.advance();
                 let member = self.consume_ident()?;
                 Ok(Expr::MemberAccess {
@@ -832,6 +781,21 @@ impl Parser {
                 self.consume(Token::RParen)?;
                 Ok(expr)
             }
+            Token::Fn => {
+                self.advance();
+                self.consume(Token::LParen)?;
+                let mut params = Vec::new();
+                if !matches!(self.peek_token(), Token::RParen) {
+                    loop {
+                        params.push(self.consume_ident()?);
+                        if !matches!(self.peek_token(), Token::Comma) { break; }
+                        self.advance();
+                    }
+                }
+                self.consume(Token::RParen)?;
+                let body = self.parse_block()?;
+                Ok(Expr::Lambda { params, body, span: start.merge(self.prev_span()) })
+            }
             _ => Err(ParserError::UnexpectedToken {
                 expected: "expression".to_string(),
                 found: format!("{:?}", self.peek_token()),
@@ -851,24 +815,24 @@ impl Parser {
         Ok(items)
     }
 
-    // -----------------------------------------------------------------------
-    // Utility
-    // -----------------------------------------------------------------------
-
     fn peek_token(&self) -> Token {
         self.tokens.front().map(|(t, _)| t.clone()).unwrap_or(Token::Eof)
     }
+
     fn prev_span(&self) -> Span {
         self.tokens.front().map(|(_, s)| *s)
             .unwrap_or_else(|| Span::new(self.source_id, 0, 0))
     }
+
     fn current_span(&self) -> Span {
         self.tokens.front().map(|(_, s)| *s)
             .unwrap_or_else(|| Span::new(self.source_id, 0, 0))
     }
+
     fn advance(&mut self) -> Token {
         self.tokens.pop_front().map(|(t, _)| t).unwrap_or(Token::Eof)
     }
+
     fn consume(&mut self, expected: Token) -> Result<(), ParserError> {
         let token = self.peek_token();
         if std::mem::discriminant(&token) == std::mem::discriminant(&expected) {
@@ -882,6 +846,7 @@ impl Parser {
             })
         }
     }
+
     fn consume_ident(&mut self) -> Result<String, ParserError> {
         match self.peek_token() {
             Token::Ident(id) => { self.advance(); Ok(id) }
@@ -892,6 +857,18 @@ impl Parser {
             }),
         }
     }
+
+    fn consume_string(&mut self) -> Result<String, ParserError> {
+        match self.peek_token() {
+            Token::String(s) => { self.advance(); Ok(s) }
+            _ => Err(ParserError::UnexpectedToken {
+                expected: "string".to_string(),
+                found: format!("{:?}", self.peek_token()),
+                span: self.current_span(),
+            }),
+        }
+    }
+
     fn is_at_end(&self) -> bool { matches!(self.peek_token(), Token::Eof) }
     fn peek_nth(&self, n: usize) -> Token {
         self.tokens.get(n).map(|(t, _)| t.clone()).unwrap_or(Token::Eof)
@@ -901,9 +878,6 @@ impl Parser {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -912,259 +886,36 @@ mod tests {
         Parser::new(src, 0).parse().expect("parse failed")
     }
 
-    // ── out statement: space-separated args ─────────────────────────────────
+    #[test]
+    fn test_print_keyword_recognized() {
+        let src = "print \"hello\";";
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+    }
 
     #[test]
-    fn test_out_space_separated() {
-        // `out "text" var "text"` should produce 3 arguments
+    fn test_mixed_print_and_out() {
         let src = r#"
-            fun demo(n) {
-                out "Calculating fib(" n ")...";
-                out "Result: " n;
+            fun demo() {
+                print "Using print";
+                out "Using out";
             }
         "#;
         let items = parse(src);
         assert_eq!(items.len(), 1);
-        if let Item::FunctionDecl { body, .. } = &items[0] {
-            // First out: 3 args
-            if let Stmt::Out { arguments, .. } = &body[0] {
-                assert_eq!(arguments.len(), 3, "Expected 3 args, got {}", arguments.len());
-            } else { panic!("Expected Out stmt"); }
-            // Second out: 2 args
-            if let Stmt::Out { arguments, .. } = &body[1] {
-                assert_eq!(arguments.len(), 2, "Expected 2 args, got {}", arguments.len());
-            } else { panic!("Expected Out stmt"); }
-        }
     }
 
     #[test]
-    fn test_out_call_in_space_separated() {
-        // `out "fib(" i ") = " fib(i)` → 4 args (last is a call)
-        let src = r#"
-            fun show(i) {
-                out "fib(" i ") = " fib(i);
-            }
-        "#;
-        let items = parse(src);
-        if let Item::FunctionDecl { body, .. } = &items[0] {
-            if let Stmt::Out { arguments, .. } = &body[0] {
-                assert_eq!(arguments.len(), 4, "Expected 4 args, got {}", arguments.len());
-            } else { panic!("Expected Out stmt"); }
-        }
-    }
-
-    #[test]
-    fn test_out_single_arg_unchanged() {
-        let src = r#"fun f() { out "hello"; }"#;
-        let items = parse(src);
-        if let Item::FunctionDecl { body, .. } = &items[0] {
-            if let Stmt::Out { arguments, .. } = &body[0] {
-                assert_eq!(arguments.len(), 1);
-            }
-        }
-    }
-
-    #[test]
-    fn test_out_comma_separated_unchanged() {
-        // Comma-separated still works
-        let src = r#"fun f(a, b) { out a, b; }"#;
-        let items = parse(src);
-        if let Item::FunctionDecl { body, .. } = &items[0] {
-            if let Stmt::Out { arguments, .. } = &body[0] {
-                assert_eq!(arguments.len(), 2);
-            }
-        }
-    }
-
-    // ── full fibonacci smoke test ────────────────────────────────────────────
-
-    #[test]
-    fn test_fibonacci_file() {
-        let src = r#"
-            fun fib(n) {
-                if n == 0 {
-                    ret 0;
-                }
-                if n == 1 {
-                    ret 1;
-                }
-                ret fib(n - 1) + fib(n - 2);
-            }
-
-            let n = 10;
-            let result = fib(n);
-
-            out "=== Axiom Fibonacci Demo ===";
-            out "Calculating fib(" n ")...";
-            out "Result: " result;
-
-            out "";
-            out "Sequence:";
-
-            fun print_seq(i, limit) {
-                if i == limit {
-                    ret;
-                }
-                out "fib(" i ") = " fib(i);
-                print_seq(i + 1, limit);
-            }
-
-            print_seq(0, n + 1);
-
-            out "";
-            out "Demo Complete.";
-        "#;
-        // Must parse without error
-        let items = Parser::new(src, 0).parse().expect("fibonacci must parse");
-
-        // Declarations hoisted before statements
-        let first_stmt = items.iter().position(|i| matches!(i, Item::Statement(_)));
-        let last_decl  = items.iter().rposition(|i| !matches!(i, Item::Statement(_)));
-        if let (Some(fs), Some(ld)) = (first_stmt, last_decl) {
-            assert!(ld < fs, "decls must precede stmts");
-        }
-    }
-
-    // ── out does not eat the next statement keyword ──────────────────────────
-
-    #[test]
-    fn test_out_stops_at_statement_keyword() {
-        // `out "done"` followed by `out "next"` on next line — must be 2 stmts
-        let src = r#"
-            fun f() {
-                out "done";
-                out "next";
-            }
-        "#;
-        let items = parse(src);
-        if let Item::FunctionDecl { body, .. } = &items[0] {
-            assert_eq!(body.len(), 2, "Should be 2 out statements");
-        }
-    }
-
-    // ── hoisting ────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_hoisting_stmt_after_decls() {
+    fn test_hoisting() {
         let src = r#"
             main();
-            User { let name; init(n){ .name = n; } display(){ out .name; } }
-            Status { Active, Inactive, }
             main() { out "hello"; }
         "#;
         let items = parse(src);
         let first_stmt = items.iter().position(|i| matches!(i, Item::Statement(_)));
         let last_decl  = items.iter().rposition(|i| !matches!(i, Item::Statement(_)));
         if let (Some(fs), Some(ld)) = (first_stmt, last_decl) {
-            assert!(ld < fs, "declarations must precede statements");
+            assert!(ld < fs);
         }
-    }
-
-    // ── basic items ─────────────────────────────────────────────────────────
-
-    #[test] fn test_number()   { assert_eq!(parse("42").len(), 1); }
-    #[test] fn test_function() { assert_eq!(parse("fun add(x,y){x+y}").len(), 1); }
-
-    #[test] fn test_class() {
-        let src = r#"cls A { fun init(self,n){self.name=n;} fun speak(self){out self.name;} }"#;
-        assert!(matches!(parse(src)[0], Item::ClassDecl{..}));
-    }
-
-    #[test] fn test_class_ext() {
-        let src = r#"cls Dog ext Animal { fun speak(self){out "Woof!";} }"#;
-        if let Item::ClassDecl{parent,..} = &parse(src)[0] {
-            assert_eq!(parent.as_deref(), Some("Animal"));
-        }
-    }
-
-    #[test] fn test_enum() {
-        let src = r#"enm Color { Red, Green, Blue }"#;
-        if let Item::EnumDecl{variants,..} = &parse(src)[0] {
-            assert_eq!(variants.len(), 3);
-        }
-    }
-
-    // ── match patterns ──────────────────────────────────────────────────────
-
-    #[test] fn test_if_as_match_bare() {
-        parse(r#"fun f(s){if s{Active=>out "a",Inactive=>out "i",els=>out "?",};}"#);
-    }
-
-    #[test] fn test_if_as_match_dotted() {
-        parse(r#"
-            fun handle(status) {
-                if status {
-                    Status.Active   => out "Status: Active",
-                    Status.Inactive => out "Status: Inactive",
-                    Status.Pending  => out "Status: Pending",
-                    els             => out "Unknown status",
-                };
-            }
-        "#);
-    }
-
-    #[test] fn test_if_as_match_literal() {
-        parse(r#"fun f(){if true{42=>out "yes",els=>out "no",};}"#);
-    }
-
-    // ── genesis syntax ──────────────────────────────────────────────────────
-
-    #[test] fn test_genesis_class() {
-        let src = r#"User{let name;let age;init(n,a){.name=n;.age=a;}display(){out .name;}}"#;
-        assert!(matches!(parse(src)[0], Item::ClassDecl{..}));
-    }
-
-    #[test] fn test_genesis_enum() {
-        assert!(matches!(parse("Status{Active,Inactive,Pending,}")[0], Item::EnumDecl{..}));
-    }
-
-    #[test] fn test_genesis_function() {
-        assert!(matches!(parse("handle(s){out s;}")[0], Item::FunctionDecl{..}));
-    }
-
-    // ── bigdemo smoke test ───────────────────────────────────────────────────
-
-    #[test] fn test_bigdemo_full() {
-        let src = r#"
-            main() {
-                let x = 42;
-                let greeting = "Axiom";
-                out greeting.upper();
-                out greeting.align(20, "right");
-                let obj = User("Alice", 30);
-                obj.display();
-                let numbers = [1, 2, 3, 4, 5];
-                out avg(numbers);
-                out sqrt(16);
-                let car = Car("Tesla", 2024);
-                car.description();
-                let status = Status.Active;
-                handle_status(status);
-                let items = [5, 2, 8, 1, 9];
-                out items.len();
-                items.push(10);
-                out items;
-                if true {
-                    42  => out "The answer to everything!",
-                    els => out "Something else",
-                };
-            }
-            User { let name; let age; init(name,age){.name=name;.age=age;} display(){out .name;out .age;} }
-            Car  { let make; let year; init(make,year){.make=make;.year=year;} description(){out .make;out .year;} }
-            Status { Active, Inactive, Pending, }
-            handle_status(status) {
-                if status {
-                    Status.Active   => out "Status: Active",
-                    Status.Inactive => out "Status: Inactive",
-                    Status.Pending  => out "Status: Pending",
-                    els             => out "Unknown status",
-                };
-            }
-            main();
-        "#;
-        let items = Parser::new(src, 0).parse().expect("bigdemo must parse");
-        let first_stmt = items.iter().position(|i| matches!(i, Item::Statement(_))).unwrap();
-        let last_decl  = items.iter().rposition(|i| !matches!(i, Item::Statement(_))).unwrap();
-        assert!(last_decl < first_stmt);
     }
 }

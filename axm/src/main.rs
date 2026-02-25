@@ -1,8 +1,9 @@
 /// Axiom CLI (axm)
 /// Orchestrates run, pkg, fmt, and chk commands.
 
-use axm::{Parser, Runtime, SemanticAnalyzer, format_source};
-use axm::pkg::PackageManager;
+use axiom::{Parser, Runtime, SemanticAnalyzer, format_source};
+use axiom::pkg::PackageManager;
+use axiom::errors::DiagnosticLevel;
 use clap::{Parser as ClapParser, Subcommand};
 use miette::{Result, IntoDiagnostic};
 use std::io::Write;
@@ -55,6 +56,8 @@ enum PkgCommands {
     Remove { name: String },
     /// List installed packages
     List,
+    /// Show package info: axm pkg info <user>/<repo>
+    Info { name: String },
 }
 
 fn main() -> Result<()> {
@@ -128,7 +131,7 @@ fn run(cli: Cli) -> Result<()> {
                 let mut has_error = false;
                 for d in &diagnostics {
                     println!("{}", d);
-                    if matches!(d.level, axm::errors::DiagnosticLevel::Error) {
+                    if matches!(d.level, DiagnosticLevel::Error) {
                         has_error = true;
                     }
                 }
@@ -184,6 +187,10 @@ fn run(cli: Cli) -> Result<()> {
                             println!("  {}", p);
                         }
                     }
+                }
+                PkgCommands::Info { name } => {
+                    pm.show_package_info(&name)
+                        .map_err(|e| miette::miette!("Failed to show package info: {}", e))?;
                 }
             }
         }

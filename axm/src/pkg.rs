@@ -265,6 +265,54 @@ impl PackageManager {
         println!("✓ Removed {}/{}", user, repo);
         Ok(())
     }
+
+    /// Show package metadata from Axiomite.toml.
+    pub fn show_package_info(&self, github_spec: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let parts: Vec<&str> = github_spec.split('/').collect();
+        if parts.len() != 2 {
+            return Err("Invalid GitHub spec. Use format: <user>/<repo>".into());
+        }
+
+        let user = parts[0];
+        let repo = parts[1];
+        let pkg_path = self.libs_dir.join(user).join(repo);
+
+        if !pkg_path.exists() {
+            return Err(format!("Package not found: {}/{}", user, repo).into());
+        }
+
+        let toml_path = pkg_path.join("Axiomite.toml");
+        if !toml_path.exists() {
+            return Err(format!("Axiomite.toml not found in {}/{}", user, repo).into());
+        }
+
+        let config = AxiomiteConfig::from_file(&toml_path)?;
+
+        println!("📦 Package Information");
+        println!("├─ Name:        {}", config.package.name);
+        println!("├─ Version:     {}", config.package.version);
+        println!("├─ Author:      {}", config.package.author);
+        println!("├─ Description: {}", config.package.description);
+        println!("└─ Location:    {}", pkg_path.display());
+
+        // Show dependencies if any
+        if !config.dependencies.requires.is_empty() {
+            println!("\n📚 Dependencies:");
+            for dep in &config.dependencies.requires {
+                println!("  • {}", dep);
+            }
+        }
+
+        // Show environment variables if any
+        if !config.env.is_empty() {
+            println!("\n🔧 Environment Variables:");
+            for (key, val) in &config.env {
+                println!("  • {} = {}", key, val);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

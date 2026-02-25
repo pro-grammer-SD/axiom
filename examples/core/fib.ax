@@ -8,7 +8,7 @@ fun fib(n) {
     ret fib(n - 1) + fib(n - 2);
 }
 
-let n = 35;
+let n = 28;
 let result = fib(n);
 
 out "=== Axiom Fibonacci Demo ===";

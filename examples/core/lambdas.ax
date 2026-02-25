@@ -1,0 +1,28 @@
+// Test lambdas and function declarations
+fn main() {
+    out "Testing lambdas...";
+}
+
+fn demo_simple_lambda() {
+    // One-liner lambdas
+    let add = fn(a, b) { a + b };
+    
+    // Multi-statement lambdas
+    let summed = fn() {
+        let x = 10;
+        let y = 20;
+        x + y
+    };
+}
+
+fn demo_methods_with_keywords() {
+    // Test .new() method call
+    let map = col.new();
+    
+    // Test other keyword methods
+    let obj1 = obj.in();
+    let obj2 = obj.out();
+    let obj3 = obj.match();
+}
+
+main();

@@ -9,7 +9,6 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 use std::fs;
 use parking_lot::RwLock;
-use std::sync::Arc;
 
 /// Module loader - now deprecated, use IntrinsicRegistry instead
 pub struct ModuleLoader {

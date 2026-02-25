@@ -31,6 +31,11 @@ pub enum Item {
         name: String,
         span: Span,
     },
+    LoadStmt {
+        path: String,
+        is_lib: bool,  // true if loading from @user/lib format
+        span: Span,
+    },
     Statement(Stmt),
 }
 
@@ -187,7 +192,7 @@ pub enum Expr {
     },
     Lambda {
         params: Vec<String>,
-        body: Box<Expr>,
+        body: Vec<Stmt>,
         span: Span,
     },
 }
