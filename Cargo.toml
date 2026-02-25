@@ -1,0 +1,65 @@
+[package]
+name = "axiom-monolith"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Core binary dependencies (previously in module crates)
+tokio = { version = "1.36", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dashmap = "5.5"
+miette = { version = "5.10", features = ["fancy"] }
+thiserror = "1.0"
+clap = { version = "4.4", features = ["derive"] }
+rowan = "0.15"
+logos = "0.13"
+lalrpop-util = "0.20"
+dirs = "5"
+ndarray = { version = "0.15", features = ["serde"] }
+petgraph = "0.6"
+rayon = "1.7"
+regex = "1.10"
+unicode-segmentation = "1.10"
+chrono = { version = "0.4", features = ["serde"] }
+polars = { version = "0.20", features = ["lazy"] }
+csv = "1.3"
+reqwest = { version = "0.11", features = ["json", "cookies"] }
+scraper = "0.18"
+walkdir = "2.4"
+dotenvy = "0.15"
+git2 = "0.20"
+parking_lot = "0.12"
+toml = "0.8"
+lazy_static = "1.4"
+arc-swap = "1"
+async-recursion = "1.0"
+colored = "2.1"
+camino = "1.1"
+crossbeam = "0.8"
+sysinfo = "0.30"
+indicatif = "0.17"
+ratatui = "0.26"
+plotters = "0.3"
+croner = "1.0"
+notify = "6.1"
+once_cell = "1.19"
+anyhow = "1.0"
+
+[lib]
+name = "axiom"
+path = "axm/src/lib.rs"
+
+[[bin]]
+name = "axm"
+path = "axm/src/main.rs"
+
+[build-dependencies]
+lalrpop = "0.20"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

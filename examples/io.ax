@@ -1,0 +1,68 @@
+// Demo: Input and Output Functions
+// Shows out() for printing and in() for reading input with type safety
+
+out("=== Axiom Input/Output Demo ===")
+out("")
+
+// Test 1: Print different types
+out("Test 1: Printing different types")
+out(42)
+out(3.14)
+out("Hello, World!")
+out(true)
+out(false)
+out([1, 2, 3, 4, 5])
+out([])
+out("")
+
+// Test 2: in() without prompt (requires manual input)
+out("Test 2: Reading input without prompt")
+out("(Type something and press Enter)")
+let input1 = in()
+out("You entered: ")
+out(input1)
+out("")
+
+// Test 3: in() with string prompt (type-safe)
+out("Test 3: Reading input with prompt")
+let name = in("Enter your name: ")
+out("Your name is: ")
+out(name)
+out("")
+
+// Test 4: in() with different types of prompts
+out("Test 4: Interactive prompts")
+let age_str = in("Enter your age: ")
+out("Age entered: ")
+out(age_str)
+out("")
+
+// Test 5: Chaining out() and in()
+out("Test 5: Interactive program")
+out("Choose a color: ")
+let color = in()
+out("You chose: ")
+out(color)
+out("")
+
+// Test 6: Multiple sequential inputs
+out("Test 6: Multiple inputs")
+let first = in("First name: ")
+let last = in("Last name: ")
+out("Full name: ")
+out(first)
+out(" ")
+out(last)
+out("")
+
+// Test 7: Printing the values we collected
+out("Test 7: Summary of collected data")
+out("Name: ")
+out(name)
+out("Age: ")
+out(age_str)
+out("Color: ")
+out(color)
+out("")
+
+out("=== Input/Output Demo Complete ===")

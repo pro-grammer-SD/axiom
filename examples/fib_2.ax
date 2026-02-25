@@ -1,0 +1,23 @@
+fun fib_iter(n) {
+    if n <= 1 {
+        ret n;
+    }
+
+    let a = 0;
+    let b = 1;
+    let i = 2;
+
+    while i <= n {
+        let temp = a + b;
+        a = b;
+        b = temp;
+        i = i + 1;
+    }
+
+    ret b;
+}
+
+let n = 35;
+let result = fib_iter(n);
+
+out "fib(" n ") = " result;
