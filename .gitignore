@@ -6,6 +6,7 @@
 # Logs
 *.log
 *.txt
+!INFO.TXT
 
 # Archives
 *.zip
