@@ -286,7 +286,7 @@ impl VmCore {
 
     /// Run the top-level proto.  Returns the last value produced (usually Nil).
     pub fn run(&mut self, proto: Arc<Proto>) -> Result<Val, RuntimeError> {
-        let nregs = proto.reg_count.max(16) as usize;
+        let nregs = (proto.reg_count as usize + 32).max(64);
         self.frames.push(Frame {
             regs:    vec![Val::Nil; nregs],
             proto,
@@ -622,7 +622,7 @@ impl VmCore {
                                 self.frames[frame_idx].regs[a] = result;
                             }
                             VmFun::Compiled { proto, params, .. } => {
-                                let nregs = proto.reg_count.max(16) as usize;
+                                let nregs = (proto.reg_count as usize + 32).max(64);
                                 let mut regs = vec![Val::Nil; nregs];
                                 for (i, arg) in args.into_iter().enumerate() {
                                     if i < *params { regs[i] = arg; }
@@ -672,7 +672,7 @@ impl VmCore {
                             }
                             VmFun::Compiled { proto, params, .. } => {
                                 // Reuse current frame (real tail-call optimization)
-                                let nregs = proto.reg_count.max(16) as usize;
+                                let nregs = (proto.reg_count as usize + 32).max(64);
                                 let mut new_regs = vec![Val::Nil; nregs];
                                 for (i, arg) in args.into_iter().enumerate() {
                                     if i < *params { new_regs[i] = arg; }
@@ -745,8 +745,16 @@ impl VmCore {
                     // abc(dst, base, count): b=base register, c=item count
                     let base  = instr.b() as usize;
                     let count = instr.c() as usize;
+                    let regs_len = self.frames[frame_idx].regs.len();
                     let items: Vec<Val> = (0..count)
-                        .map(|i| self.frames[frame_idx].regs[base + i].clone())
+                        .map(|i| {
+                            let idx = base + i;
+                            if idx < regs_len {
+                                self.frames[frame_idx].regs[idx].clone()
+                            } else {
+                                Val::Nil
+                            }
+                        })
                         .collect();
                     self.frames[frame_idx].regs[a] = Val::List(Arc::new(Mutex::new(items)));
                 }

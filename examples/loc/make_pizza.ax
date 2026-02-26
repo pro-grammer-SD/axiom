@@ -1,3 +1,3 @@
-// Run from root of this repo.
-load "examples/loc/pizza_factory.ax";
-make_pizza("pepperoni");
+load "examples/loc/pizza_factory.ax"; // Relative import, run this script
+                                      // from the root of this repo.
+make_pizza("pepperoni"); // make the yummy pizza :D

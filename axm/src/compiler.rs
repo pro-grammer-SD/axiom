@@ -734,7 +734,8 @@ pub fn compile_program(items: &[Item], source: &str) -> (Proto, GlobalTable) {
                    "sqrt", "abs", "floor", "ceil", "pow", "min", "max", "avg",
                    "alg", "ann", "aut", "clr", "col", "con", "csv", "dfm",
                    "env", "git", "ioo", "jsn", "log", "mth", "net", "num",
-                   "plt", "pth", "str", "sys", "tim", "tui", "cli", "__load"] {
+                   "plt", "pth", "sys", "tim", "tui", "cli",
+                   "chdir", "cwd", "__load"] {
         globals.intern(name);
     }
 

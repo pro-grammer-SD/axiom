@@ -85,6 +85,24 @@ impl Runtime {
             _ => AxValue::Nil,
         });
         globals.insert("nil".into(), AxValue::Nil);
+        // chdir / cwd — registered here so both VM and tree-walk paths can find them
+        globals.insert("chdir".into(), AxValue::Fun(Arc::new(AxCallable::Native {
+            name: "chdir".into(),
+            func: |args| match args.first() {
+                Some(AxValue::Str(path)) => match std::env::set_current_dir(path) {
+                    Ok(_)  => AxValue::Bol(true),
+                    Err(e) => AxValue::Str(format!("ERROR: {}", e)),
+                },
+                _ => AxValue::Str("ERROR: chdir expects a string path".into()),
+            },
+        })));
+        globals.insert("cwd".into(), AxValue::Fun(Arc::new(AxCallable::Native {
+            name: "cwd".into(),
+            func: |_args| match std::env::current_dir() {
+                Ok(path) => AxValue::Str(path.display().to_string()),
+                Err(e)   => AxValue::Str(format!("ERROR: {}", e)),
+            },
+        })));
         intrinsics::register(&mut globals);
         Runtime { globals, classes: HashMap::new() }
     }
