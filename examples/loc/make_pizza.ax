@@ -1,2 +1,2 @@
-load pizza_factory.ax;
-make_pizza(pepperoni);
+load "examples/loc/pizza_factory.ax";
+make_pizza("pepperoni");
