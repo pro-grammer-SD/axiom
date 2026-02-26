@@ -742,9 +742,9 @@ impl VmCore {
 
                 // ── Lists ────────────────────────────────────────────────────────
                 Op::NewList => {
-                    // bx = count, c = base register (compiler patches in c field)
-                    let base = instr.c() as usize;
-                    let count = bx;
+                    // abc(dst, base, count): b=base register, c=item count
+                    let base  = instr.b() as usize;
+                    let count = instr.c() as usize;
                     let items: Vec<Val> = (0..count)
                         .map(|i| self.frames[frame_idx].regs[base + i].clone())
                         .collect();

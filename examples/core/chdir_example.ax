@@ -1,0 +1,11 @@
+// chdir / cwd example
+// cwd() returns the current working directory as a string
+// chdir(path) changes the current working directory; returns true on success
+
+out cwd();
+chdir("..");
+out cwd();
+
+// also accessible via the sys module:
+// sys.cwd()
+// sys.chdir("..")

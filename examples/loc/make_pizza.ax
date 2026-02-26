@@ -1,2 +1,3 @@
+// Run from root of this repo.
 load "examples/loc/pizza_factory.ax";
 make_pizza("pepperoni");

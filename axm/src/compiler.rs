@@ -395,13 +395,13 @@ impl<'g> Compiler<'g> {
             }
 
             Expr::List { items, .. } => {
-                let count = items.len() as u16;
+                let count = items.len();
                 let base = self.regs.alloc_temp();
                 let start = base;
 
                 // Alloc consecutive regs for all items
                 let mut item_regs = vec![base];
-                for _ in 1..items.len() {
+                for _ in 1..count {
                     item_regs.push(self.regs.alloc_temp());
                 }
 
@@ -409,10 +409,9 @@ impl<'g> Compiler<'g> {
                     self.compile_expr(item, item_regs[i]);
                 }
 
-                self.emit(Instr::abx(Op::NewList, dst, count));
-                // Patch in base register
-                let last = self.proto.code.len() - 1;
-                self.proto.code[last].0 |= (start as u32) << 24;
+                // Use abc(dst, base, count): b=base reg, c=count — no post-emit patching needed.
+                // Both base and count fit in u8 (max 255 regs / 255-element literal list).
+                self.emit(Instr::abc(Op::NewList, dst, start, count as u8));
 
                 for r in item_regs.into_iter().skip(1).rev() {
                     self.regs.free_temp(r);

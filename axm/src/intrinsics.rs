@@ -1273,6 +1273,25 @@ fn sys_memory(_args: Vec<AxValue>) -> AxValue {
     AxValue::Map(map)
 }
 
+fn sys_chdir(args: Vec<AxValue>) -> AxValue {
+    match args.get(0) {
+        Some(AxValue::Str(path)) => {
+            match std::env::set_current_dir(path) {
+                Ok(_) => AxValue::Bol(true),
+                Err(e) => AxValue::Str(format!("ERROR: {}", e)),
+            }
+        }
+        _ => AxValue::Str("ERROR: chdir expects a string path".to_string()),
+    }
+}
+
+fn sys_cwd(_args: Vec<AxValue>) -> AxValue {
+    match std::env::current_dir() {
+        Ok(path) => AxValue::Str(path.display().to_string()),
+        Err(e) => AxValue::Str(format!("ERROR: {}", e)),
+    }
+}
+
 // ==================== MODULE 21: TIM (TIME) ====================
 
 fn tim_now(_args: Vec<AxValue>) -> AxValue {
@@ -1548,7 +1567,11 @@ pub fn register(globals: &mut HashMap<String, AxValue>) {
     sys_map.insert("info".to_string(), native("sys.info", sys_info));
     sys_map.insert("cpu_usage".to_string(), native("sys.cpu_usage", sys_cpu_usage));
     sys_map.insert("memory".to_string(), native("sys.memory", sys_memory));
+    sys_map.insert("chdir".to_string(), native("sys.chdir", sys_chdir));
+    sys_map.insert("cwd".to_string(), native("sys.cwd", sys_cwd));
     globals.insert("sys".to_string(), AxValue::Map(sys_map));
+    globals.insert("chdir".to_string(), native("chdir", sys_chdir));
+    globals.insert("cwd".to_string(), native("cwd", sys_cwd));
 
     // =============== MODULE 21: TIM ===============
     let tim_map = Arc::new(DashMap::new());
