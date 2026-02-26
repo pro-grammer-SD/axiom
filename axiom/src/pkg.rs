@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use semver;
 use std::collections::BTreeMap;
 use std::env;
 use std::path::{Path, PathBuf};
@@ -61,7 +62,7 @@ impl PackageManager {
         Ok(PackageManager { libs_dir })
     }
 
-    /// Install a package from GitHub: `axm pkg add <user>/<repo>`.
+    /// Install a package from GitHub: `axiom pkg add <user>/<repo>`.
     pub fn install_package(&self, github_spec: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
         let parts: Vec<&str> = github_spec.split('/').collect();
         if parts.len() != 2 {
@@ -348,5 +349,132 @@ other_lib = "0.1.0"
         assert_eq!(parts.len(), 2);
         assert_eq!(parts[0], "owner");
         assert_eq!(parts[1], "repo");
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SEMVER UPGRADE — Compare local vs remote version and upgrade if needed
+// ═══════════════════════════════════════════════════════════════════
+
+impl PackageManager {
+    /// Upgrade a package: compare local semver vs remote HEAD, re-clone if newer.
+    /// Usage: axiom pkg upgrade <user>/<repo>
+    pub fn upgrade_package(&self, github_spec: &str) -> Result<bool, Box<dyn std::error::Error>> {
+        let parts: Vec<&str> = github_spec.split('/').collect();
+        if parts.len() != 2 {
+            return Err("Invalid GitHub spec. Use format: <user>/<repo>".into());
+        }
+        let user = parts[0];
+        let repo = parts[1];
+        let install_path = self.libs_dir.join(user).join(repo);
+
+        if !install_path.exists() {
+            return Err(format!("Package not installed: {}/{}", user, repo).into());
+        }
+
+        // Read local version from Axiomite.toml
+        let toml_path = install_path.join("Axiomite.toml");
+        let local_config = AxiomiteConfig::from_file(&toml_path)?;
+        let local_version: semver::Version = local_config.package.version.parse()
+            .map_err(|e| format!("Invalid local version '{}': {}", local_config.package.version, e))?;
+
+        println!("📦 {}/{} — local version: {}", user, repo, local_version);
+
+        // Open the existing git repo and fetch to check remote version
+        let git_repo = git2::Repository::open(&install_path)?;
+        let mut remote = git_repo.find_remote("origin")?;
+
+        println!("🔍 Fetching remote info from origin...");
+        remote.fetch(&["HEAD"], None, None)?;
+
+        // Check if FETCH_HEAD has a different commit than HEAD
+        let fetch_head = git_repo.find_reference("FETCH_HEAD")?;
+        let remote_commit_id = fetch_head.target()
+            .ok_or("FETCH_HEAD has no target OID")?;
+        let head_ref = git_repo.head()?;
+        let local_commit_id = head_ref.target()
+            .ok_or("HEAD has no target OID")?;
+
+        if remote_commit_id == local_commit_id {
+            println!("✓ Already up to date ({})", local_version);
+            return Ok(false);
+        }
+
+        // Try to parse remote version from remote Axiomite.toml via blob
+        let remote_obj = git_repo.find_object(remote_commit_id, None)?;
+        let remote_commit = remote_obj.peel_to_commit()?;
+        let remote_tree = remote_commit.tree()?;
+
+        let remote_version = if let Some(entry) = remote_tree.get_name("Axiomite.toml") {
+            let blob = git_repo.find_blob(entry.id())?;
+            let content = std::str::from_utf8(blob.content())?;
+            AxiomiteConfig::from_toml(content)
+                .ok()
+                .and_then(|c| c.package.version.parse::<semver::Version>().ok())
+        } else {
+            None
+        };
+
+        let upgrade_msg = match &remote_version {
+            Some(rv) => {
+                if *rv <= local_version {
+                    println!("✓ Local version {} is current (remote: {})", local_version, rv);
+                    return Ok(false);
+                }
+                format!("Upgrading {} → {}", local_version, rv)
+            }
+            None => format!("Remote has new commits — upgrading from {}", local_version),
+        };
+
+        println!("⬆  {}", upgrade_msg);
+
+        // Perform upgrade: hard reset to FETCH_HEAD
+        let fetch_commit = git_repo.find_commit(remote_commit_id)?;
+        let _fetch_annotated = git_repo.find_annotated_commit(remote_commit_id)?;
+        git_repo.reset(fetch_commit.as_object(), git2::ResetType::Hard, None)?;
+
+        println!("✓ Upgraded to commit {}", &remote_commit_id.to_string()[..8]);
+
+        // Re-inject environment variables
+        let updated_toml = install_path.join("Axiomite.toml");
+        if updated_toml.exists() {
+            if let Ok(config) = AxiomiteConfig::from_file(&updated_toml) {
+                self.inject_env_vars(&config);
+                if let Some(rv) = remote_version {
+                    println!("✓ Now at version {}", rv);
+                }
+            }
+        }
+
+        Ok(true)
+    }
+
+    /// Auto-detect local Axiomite.toml and display metadata (axiom pkg info .)
+    pub fn show_local_info(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let manifest = std::env::current_dir()?.join("Axiomite.toml");
+        if !manifest.exists() {
+            return Err("No Axiomite.toml found in current directory".into());
+        }
+        let config = AxiomiteConfig::from_file(&manifest)?;
+        println!("📦 Local Package Information");
+        println!("├─ Name:        {}", config.package.name);
+        println!("├─ Version:     {}", config.package.version);
+        println!("├─ Author:      {}", config.package.author);
+        println!("├─ Description: {}", config.package.description);
+        println!("└─ Location:    {}", manifest.parent().unwrap().display());
+
+        if !config.dependencies.requires.is_empty() {
+            println!("\n📚 Dependencies:");
+            for dep in &config.dependencies.requires {
+                println!("  • {}", dep);
+            }
+        }
+        if !config.env.is_empty() {
+            println!("\n🔧 Environment Variables:");
+            for (k, v) in &config.env {
+                println!("  • {} = {}", k, v);
+            }
+        }
+        Ok(())
     }
 }

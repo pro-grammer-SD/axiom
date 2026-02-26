@@ -456,8 +456,8 @@ let huge = huge + [1, 2, 3, 4, 5];  // fill memory
 
 **Fix:** Use release build and optimize:
 ```bash
-cargo build --release --bin axm
-./target/release/axm run script.ax
+cargo build --release --bin axiom
+./target/release/axiom run script.ax
 ```
 
 #### AX306 - Null Pointer
@@ -512,7 +512,7 @@ lib unknown_package;
 
 **Fix:** Install package:
 ```bash
-axm pkg add user/unknown_package
+axiom pkg add user/unknown_package
 ```
 
 Or check spelling:
@@ -596,12 +596,12 @@ std = "0.1"
 
 **Example:**
 ```bash
-axm pkg add user/repo  # network error
+axiom pkg add user/repo  # network error
 ```
 
 **Fix:** Check network and retry:
 ```bash
-axm pkg add user/repo  # retry
+axiom pkg add user/repo  # retry
 ```
 
 ## Getting Help
@@ -692,22 +692,22 @@ fun get_value() {
 
 Catch more potential errors:
 ```bash
-axm check script.ax
+axiom check script.ax
 ```
 
 ### Debug Mode
 
 More detailed error messages:
 ```bash
-AXM_DEBUG=1 axm run script.ax
+axiom_DEBUG=1 axiom run script.ax
 ```
 
 ### Release Mode
 
 Missing some checks for performance:
 ```bash
-cargo build --release --bin axm
-./target/release/axm run script.ax
+cargo build --release --bin axiom
+./target/release/axiom run script.ax
 ```
 
 ## See Also

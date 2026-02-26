@@ -1,7 +1,8 @@
-/// Axiom CLI (axm)
-/// Orchestrates run, pkg, fmt, and chk commands.
+/// Axiom CLI (axiom)
+/// Orchestrates run, pkg, fmt, chk, and conf commands.
 
 use axiom::{Parser, Runtime, SemanticAnalyzer, format_source};
+use axiom::conf::{cmd_conf_set, cmd_conf_get, cmd_conf_list, cmd_conf_reset, cmd_conf_describe};
 use axiom::pkg::PackageManager;
 use axiom::errors::DiagnosticLevel;
 use clap::{Parser as ClapParser, Subcommand};
@@ -14,10 +15,10 @@ const STACK_SIZE: usize = 64 * 1024 * 1024;
 
 #[derive(ClapParser)]
 #[command(
-    name = "axm",
+    name = "axiom",
     version = "0.1.0",
     about = "The Axiom Language Toolchain",
-    long_about = "axm — run, check, format, and manage packages for Axiom (.ax) scripts."
+    long_about = "axiom — run, check, format, and manage packages for Axiom (.ax) scripts."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -46,17 +47,38 @@ enum Commands {
         #[command(subcommand)]
         cmd: PkgCommands,
     },
+    /// Manage Axiom runtime configuration (~/.axiom/conf.txt)
+    Conf {
+        #[command(subcommand)]
+        cmd: ConfCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum ConfCommands {
+    /// Set a property: axiom conf set property=value
+    Set { spec: String },
+    /// Get a property: axiom conf get property
+    Get { key: String },
+    /// List all properties with current values
+    List,
+    /// Reset all properties to their defaults
+    Reset,
+    /// Show detailed documentation for a property
+    Describe { key: String },
 }
 
 #[derive(Subcommand)]
 enum PkgCommands {
-    /// Install a package: axm pkg add <user>/<repo>
+    /// Install a package: axiom pkg add <user>/<repo>
     Add { name: String },
-    /// Remove a package: axm pkg remove <user>/<repo>
+    /// Remove a package: axiom pkg remove <user>/<repo>
     Remove { name: String },
+    /// Upgrade a package to latest: axiom pkg upgrade <user>/<repo>
+    Upgrade { name: String },
     /// List installed packages
     List,
-    /// Show package info: axm pkg info <user>/<repo>
+    /// Show package info: axiom pkg info <user>/<repo>  OR  axiom pkg info .
     Info { name: String },
 }
 
@@ -64,12 +86,12 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let result = std::thread::Builder::new()
-        .name("axm-worker".into())
+        .name("axiom-worker".into())
         .stack_size(STACK_SIZE)
         .spawn(move || {
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(cli)))
         })
-        .expect("failed to spawn axm worker thread")
+        .expect("failed to spawn axiom worker thread")
         .join();
 
     match result {
@@ -80,18 +102,22 @@ fn main() -> Result<()> {
             } else if let Some(s) = panic_payload.downcast_ref::<String>() {
                 format!("internal error (panic): {}", s)
             } else {
-                "internal error: unexpected panic in axm runtime".to_string()
+                "internal error: unexpected panic in axiom runtime".to_string()
             };
-            eprintln!("axm crashed: {}", msg);
+            eprintln!("axiom crashed: {}", msg);
             Err(miette::miette!("{}", msg))
         }
     }
 }
 
 fn run(cli: Cli) -> Result<()> {
+    // Ensure ~/.axiom/conf.txt exists before handling any command.
+    // This is a no-op if the file already exists (single stat syscall).
+    axiom::conf::AxConf::ensure_initialized();
+
     match cli.command {
         // ----------------------------------------------------------------
-        // axm run <file.ax>
+        // axiom run <file.ax>
         // ----------------------------------------------------------------
         Commands::Run { path } => {
             let source = std::fs::read_to_string(&path)
@@ -112,7 +138,7 @@ fn run(cli: Cli) -> Result<()> {
         }
 
         // ----------------------------------------------------------------
-        // axm chk <file.ax>
+        // axiom chk <file.ax>
         // ----------------------------------------------------------------
         Commands::Chk { path } => {
             let source = std::fs::read_to_string(&path)
@@ -142,7 +168,7 @@ fn run(cli: Cli) -> Result<()> {
         }
 
         // ----------------------------------------------------------------
-        // axm fmt <file.ax> [--write]
+        // axiom fmt <file.ax> [--write]
         // ----------------------------------------------------------------
         Commands::Fmt { path, write } => {
             let source = std::fs::read_to_string(&path)
@@ -161,7 +187,7 @@ fn run(cli: Cli) -> Result<()> {
         }
 
         // ----------------------------------------------------------------
-        // axm pkg <add|remove|list>
+        // axiom pkg <add|remove|list>
         // ----------------------------------------------------------------
         Commands::Pkg { cmd } => {
             let pm = PackageManager::new()
@@ -188,9 +214,41 @@ fn run(cli: Cli) -> Result<()> {
                         }
                     }
                 }
+                PkgCommands::Upgrade { name } => {
+                    pm.upgrade_package(&name)
+                        .map_err(|e| miette::miette!("Failed to upgrade '{}': {}", name, e))?;
+                }
                 PkgCommands::Info { name } => {
-                    pm.show_package_info(&name)
-                        .map_err(|e| miette::miette!("Failed to show package info: {}", e))?;
+                    if name == "." {
+                        // Auto-detect local Axiomite.toml
+                        pm.show_local_info()
+                            .map_err(|e| miette::miette!("Failed to show local info: {}", e))?;
+                    } else {
+                        pm.show_package_info(&name)
+                            .map_err(|e| miette::miette!("Failed to show package info: {}", e))?;
+                    }
+                }
+            }
+        }
+        // ----------------------------------------------------------------
+        // axiom conf <set|get|list|reset|describe>
+        // ----------------------------------------------------------------
+        Commands::Conf { cmd } => {
+            match cmd {
+                ConfCommands::Set { spec } => {
+                    cmd_conf_set(&spec).map_err(|e| miette::miette!("{}", e))?;
+                }
+                ConfCommands::Get { key } => {
+                    cmd_conf_get(&key).map_err(|e| miette::miette!("{}", e))?;
+                }
+                ConfCommands::List => {
+                    cmd_conf_list();
+                }
+                ConfCommands::Reset => {
+                    cmd_conf_reset().map_err(|e| miette::miette!("{}", e))?;
+                }
+                ConfCommands::Describe { key } => {
+                    cmd_conf_describe(&key);
                 }
             }
         }

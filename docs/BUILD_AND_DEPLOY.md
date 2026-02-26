@@ -16,7 +16,7 @@ cargo build
 ```
 
 **Output:**
-- Binary: `target/debug/axm` (or `axm.exe` on Windows)
+- Binary: `target/debug/axiom` (or `axiom.exe` on Windows)
 - Module dependencies compiled (not yet installed to ~/.axiom/)
 
 **Time:** ~3-5 minutes (first build)
@@ -37,7 +37,7 @@ strip = true           # Remove debug symbols
 ```
 
 **Output:**
-- Binary: `target/release/axm` (~5-8MB after stripping)
+- Binary: `target/release/axiom` (~5-8MB after stripping)
 - Module .rax files compiled (ready for installation)
 
 **Time:** ~8-12 minutes
@@ -52,8 +52,8 @@ mkdir -p ~/.axiom/bin
 mkdir -p ~/.axiom/lib
 
 # Copy binary
-cp target/release/axm ~/.axiom/bin/
-# On Windows: copy target\release\axm.exe %APPDATA%\Local\axiom\bin\
+cp target/release/axiom ~/.axiom/bin/
+# On Windows: copy target\release\axiom.exe %APPDATA%\Local\axiom\bin\
 
 # Copy module .rax files
 # (Build each module as a dynamic library)
@@ -71,10 +71,10 @@ cd modules/mth && cargo build --release && cp target/release/axiom_mth.dll ~/.ax
 
 ### Test 1: Check Installation
 ```bash
-axm --version
-# Output: axm 0.1.0
+axiom --version
+# Output: axiom 0.1.0
 
-axm --help
+axiom --help
 # Output: Usage, subcommands, etc.
 ```
 
@@ -94,7 +94,7 @@ out @ x  // 4.0
 
 Run:
 ```bash
-axm run test.ax
+axiom run test.ax
 # Output:
 # Pi = 3.14159...
 # 4.0
@@ -117,7 +117,7 @@ let result = ann.to_int(y)   // ✓ parses to int
 
 Run:
 ```bash
-axm chk typecheck.ax
+axiom chk typecheck.ax
 # Output: ✓ Type checking passed (or errors if any)
 ```
 
@@ -131,24 +131,24 @@ if(x>10)then{out @ x}else{out @ "too small"}
 
 Format:
 ```bash
-axm fmt messy.ax
+axiom fmt messy.ax
 # Output: formatted code to stdout
 
-axm fmt messy.ax --write
+axiom fmt messy.ax --write
 # Writes formatted code back to messy.ax
 ```
 
 ### Test 5: Module Discovery
 
 ```bash
-axm mod list
+axiom mod list
 # Output:
 #   mth      (Math)
 #   num      (Numerical)
 #   ... (20 more modules)
 #   con      (Concurrency)
 
-axm mod info mth
+axiom mod info mth
 # Output:
 #   Module: mth (0.1.0)
 #   Functions: sin, cos, tan, sqrt, pow, abs, ln, log10
@@ -273,7 +273,7 @@ out @ (t1 - t0) / 1_000_000_000.0    // Time in seconds
 
 Run:
 ```bash
-time axm run fib.ax
+time axiom run fib.ax
 # First run: ~5-15 seconds (bytecode interpretation)
 # Second run: ~0.5 seconds (JIT compiled, cached bytecode)
 ```
@@ -326,7 +326,7 @@ print(t1 - t0)
 **Performance Issues**
 - First run interprets bytecode (slow)
 - Second run uses JIT-compiled version (fast)
-- Check function execution count: `axm profile script.ax`
+- Check function execution count: `axiom profile script.ax`
 
 ---
 
@@ -362,13 +362,13 @@ jobs:
         run: mkdir -p ~/.axiom/bin ~/.axiom/lib
       
       - name: Copy binaries
-        run: cp target/release/axm* ~/.axiom/bin/
+        run: cp target/release/axiom* ~/.axiom/bin/
       
       - name: Run examples
         run: |
-          ~/.axiom/bin/axm run examples/fib.ax
-          ~/.axiom/bin/axm run examples/hello.ax
-          ~/.axiom/bin/axm chk examples/func_call.ax
+          ~/.axiom/bin/axiom run examples/fib.ax
+          ~/.axiom/bin/axiom run examples/hello.ax
+          ~/.axiom/bin/axiom chk examples/func_call.ax
 ```
 
 ---
@@ -401,12 +401,12 @@ COPY . .
 
 RUN cargo build --release && \
     mkdir -p ~/.axiom/bin ~/.axiom/lib && \
-    cp target/release/axm* ~/.axiom/bin/ && \
+    cp target/release/axiom* ~/.axiom/bin/ && \
     cp target/release/*.{dll,so,dylib} ~/.axiom/lib/ 2>/dev/null || true
 
 ENV PATH="${HOME}/.axiom/bin:${PATH}"
 
-ENTRYPOINT ["axm"]
+ENTRYPOINT ["axiom"]
 ```
 
 Build and run:
@@ -432,7 +432,7 @@ docker run -v $(pwd):/work axiom run /work/script.ax
 
 ```bash
 # 1. Check binary exists and runs
-axm --version
+axiom --version
 
 # 2. Verify modules load
 ls -l ~/.axiom/lib/ | wc -l
@@ -444,7 +444,7 @@ import mth
 out @ mth.PI
 EOF
 
-axm run /tmp/test.ax
+axiom run /tmp/test.ax
 # Output: 3.14159...
 
 # 4. Performance test
@@ -455,7 +455,7 @@ fn fib(n) {
 out @ fib(30)
 EOF
 
-time axm run /tmp/perf.ax
+time axiom run /tmp/perf.ax
 # Should complete in <10 seconds
 ```
 

@@ -1,2 +1,2 @@
-load pizza_factory;
+load pizza_factory.ax;
 make_pizza(pepperoni);

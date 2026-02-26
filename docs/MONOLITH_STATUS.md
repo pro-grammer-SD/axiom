@@ -23,7 +23,7 @@ Axiom has been successfully transformed from a modular `.rax` system to a **Stat
 - ✅ Updated test_keywords() to exclude `std` 
 - ✅ Updated documentation comments
 
-**File:** [axm/src/lexer.rs](../axm/src/lexer.rs)
+**File:** [axiom/src/lexer.rs](../axiom/src/lexer.rs)
 
 #### 2. **Parser Restructuring**
 - ✅ Removed `Token::Std` case from `parse_item()` (no more `parse_std_import()` calls)
@@ -31,19 +31,19 @@ Axiom has been successfully transformed from a modular `.rax` system to a **Stat
 - ✅ Removed `Item::StdImport` from hoisting phase
 - ✅ Removed redundant module import orchestration
 
-**File:** [axm/src/parser.rs](../axm/src/parser.rs)
+**File:** [axiom/src/parser.rs](../axiom/src/parser.rs)
 
 #### 3. **AST Cleanup**
 - ✅ Removed `StdImport` variant from `Item` enum
 - ✅ Now only supports `LocImport` and `LibDecl` for backward compatibility
 
-**File:** [axm/src/ast.rs](../axm/src/ast.rs)
+**File:** [axiom/src/ast.rs](../axiom/src/ast.rs)
 
 ---
 
 ### ✅ PHASE 2: INTRINSIC MONOLITH IMPLEMENTATION
 
-**New File:** [axm/src/intrinsics.rs](../axm/src/intrinsics.rs) (1000+ lines)
+**New File:** [axiom/src/intrinsics.rs](../axiom/src/intrinsics.rs) (1000+ lines)
 
 #### Module Implementations (1-11 of 22):
 
@@ -90,7 +90,7 @@ PowerShell script automates:
 
 3. **Environment Setup**
    - Add `target/release/` to Windows PATH permanently (User-level)
-   - Enables immediate `axm` command usage
+   - Enables immediate `axiom` command usage
 
 4. **Verification Phase**
    - Auto-generates test script calling all accessible modules
@@ -185,7 +185,7 @@ All 22 modules instantly available:
 
 | Property | Value |
 |----------|-------|
-| **Name** | `axm` (Windows: `axm.exe`) |
+| **Name** | `axiom` (Windows: `axiom.exe`) |
 | **Location** | `target/release/` |
 | **Size** | ~50-80 MB (fat LTO) |
 | **Dependencies** | Zero (all statically linked) |
@@ -296,8 +296,8 @@ Required to pick up PATH changes.
 
 ### Step 3: Verify Installation
 ```bash
-axm --version
-axm examples/fib.ax
+axiom --version
+axiom examples/fib.ax
 ```
 
 ### Step 4: Try Intrinsics
@@ -306,7 +306,7 @@ axm examples/fib.ax
 echo 'let r = alg.range(5); out r;' > test.ax
 
 # Run with monolithic binary:
-axm test.ax
+axiom test.ax
 # Output: [0, 1, 2, 3, 4]
 ```
 
@@ -316,10 +316,10 @@ axm test.ax
 
 | File | Changes | Status |
 |------|---------|--------|
-| [axm/src/intrinsics.rs](../axm/src/intrinsics.rs) | Complete rewrite (1000+ lines) | ✅ |
-| [axm/src/lexer.rs](../axm/src/lexer.rs) | Removed `Std` token | ✅ |
-| [axm/src/parser.rs](../axm/src/parser.rs) | Removed StdImport parsing | ✅ |
-| [axm/src/ast.rs](../axm/src/ast.rs) | Removed StdImport variant | ✅ |
+| [axiom/src/intrinsics.rs](../axiom/src/intrinsics.rs) | Complete rewrite (1000+ lines) | ✅ |
+| [axiom/src/lexer.rs](../axiom/src/lexer.rs) | Removed `Std` token | ✅ |
+| [axiom/src/parser.rs](../axiom/src/parser.rs) | Removed StdImport parsing | ✅ |
+| [axiom/src/ast.rs](../axiom/src/ast.rs) | Removed StdImport variant | ✅ |
 | [setup.ps1](../setup.ps1) | Rewritten for monolith | ✅ |
 | [docs/MONOLITH_STDLIB.md](../docs/MONOLITH_STDLIB.md) | Complete reference (NEW) | ✅ |
 | [Cargo.toml](../Cargo.toml) | Already configured | ✅ |

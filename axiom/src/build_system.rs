@@ -1,7 +1,7 @@
 /// Axiom Build System
 ///
 /// Handles project-level build operations.
-/// Standard library bootstrapping has been removed — axm is self-contained.
+/// Standard library bootstrapping has been removed — axiom is self-contained.
 
 use std::path::PathBuf;
 

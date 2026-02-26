@@ -248,10 +248,27 @@ impl Parser {
     fn parse_load_stmt(&mut self) -> Result<Item, ParserError> {
         let start = self.current_span();
         self.advance();  // consume "load"
-        let path = self.consume_string()?;
+
+        // Accept either a quoted string literal or an unquoted @user/repo lib path
+        let path = match self.peek_token() {
+            Token::LibPath(_) => {
+                if let Token::LibPath(p) = self.advance() { p } else { unreachable!() }
+            }
+            _ => self.consume_string()?,
+        };
+
         self.skip_semicolons();
         let is_lib = path.starts_with('@');
-        Ok(Item::LoadStmt { path, is_lib, span: start.merge(self.prev_span()) })
+
+        // Check for optional //alias: name inline comment
+        let alias = match self.peek_token() {
+            Token::Alias(_) => {
+                if let Token::Alias(name) = self.advance() { Some(name) } else { None }
+            }
+            _ => None,
+        };
+
+        Ok(Item::LoadStmt { path, is_lib, alias, span: start.merge(self.prev_span()) })
     }
 
     fn parse_param_list(&mut self) -> Result<Vec<String>, ParserError> {

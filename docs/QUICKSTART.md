@@ -22,7 +22,7 @@ cd C:\Users\ADMIN\Desktop\programming\github_repos\axiom
 
 ```bash
 cargo build --release
-# Binary location: target/release/axm.exe
+# Binary location: target/release/axiom.exe
 ```
 
 ---
@@ -32,7 +32,7 @@ cargo build --release
 After setup, use the monolithic binary directly:
 
 ```bash
-axm your_program.ax
+axiom your_program.ax
 ```
 
 ### Example 1: Hello World with Intrinsics
@@ -61,7 +61,7 @@ out "Done!";
 
 **Run:**
 ```bash
-axm hello.ax
+axiom hello.ax
 ```
 
 **Output:**
@@ -302,7 +302,7 @@ if as_num {
 
 ## Troubleshooting
 
-### Problem: "axm not found"
+### Problem: "axiom not found"
 
 **Solution:** Ensure PATH was updated:
 ```powershell
@@ -337,9 +337,9 @@ cargo build --release
 Ready-to-run examples in `examples/` directory:
 
 ```bash
-axm examples/fib.ax
-axm examples/io.ax
-axm examples/simple.ax
+axiom examples/fib.ax
+axiom examples/io.ax
+axiom examples/simple.ax
 ```
 
 ---
@@ -347,7 +347,7 @@ axm examples/simple.ax
 ## Where to Get Help
 
 1. **Module Reference:** [docs/MONOLITH_STDLIB.md](./docs/MONOLITH_STDLIB.md)
-2. **Implementation Details:** [axm/src/intrinsics.rs](./axm/src/intrinsics.rs)
+2. **Implementation Details:** [axiom/src/intrinsics.rs](./axiom/src/intrinsics.rs)
 3. **Architecture:** [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 
 ---
@@ -355,7 +355,7 @@ axm examples/simple.ax
 ## Next Steps
 
 1. ✅ Run `setup.ps1` to install
-2. ✅ Try example: `axm examples/fib.ax`
+2. ✅ Try example: `axiom examples/fib.ax`
 3. ✅ Read [Module Reference](./docs/MONOLITH_STDLIB.md)
 4. ✅ Build your own programs!
 

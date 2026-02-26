@@ -1002,9 +1002,9 @@ if value {
 
 ## COMPILATION & RUNTIME
 
-- **Compilation:** All intrinsics compiled into single monolithic `axm` binary
+- **Compilation:** All intrinsics compiled into single monolithic `axiom` binary
 - **Runtime:** Zero module loading overhead—all functions available immediately
 - **Binary Size:** ~50-80MB (release build with all backends)
 - **Startup:** Instant (no dynamic loading)
 
-For detailed module implementations, see [axm/src/intrinsics.rs](../axm/src/intrinsics.rs).
+For detailed module implementations, see [axiom/src/intrinsics.rs](../axiom/src/intrinsics.rs).

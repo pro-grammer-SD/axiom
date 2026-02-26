@@ -67,10 +67,17 @@ LibDecl: Item = {
     "lib" <name:Ident> ";" => Item::LibDecl { name, span: Default::default() },
 };
 
+/// Load statement with optional dual-namespace alias:
+///   load "utils.ax";             //  — local file
+///   load @dev/math-lib;          //  — @-style lib path (no quotes)
+///   load "utils.ax"; //alias: u  //  — shorthand alias: both u.func() and utils.func() work
 LoadStmt: Item = {
-    "load" <path:Str> ";" => {
+    "load" <path:Str> ";" <alias:Alias?> => {
         let is_lib = path.starts_with('@');
-        Item::LoadStmt { path, is_lib, span: Default::default() }
+        Item::LoadStmt { path, is_lib, alias, span: Default::default() }
+    },
+    "load" <path:LibPath> ";" <alias:Alias?> => {
+        Item::LoadStmt { path, is_lib: true, alias, span: Default::default() }
     },
 };
 
@@ -329,5 +336,7 @@ extern {
         ":" => Token::Colon,
         "." => Token::Dot,
         "=>" => Token::Arrow,
+        LibPath => Token::LibPath(<String>),
+        Alias => Token::Alias(<String>),
     }
 }

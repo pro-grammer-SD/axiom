@@ -12,7 +12,7 @@ Quick answers to common questions about Axiom.
 ```bash
 git clone <repo>
 cd axiom
-cargo build --release --bin axm
+cargo build --release --bin axiom
 export PATH="$PATH:$(pwd)/target/release"
 ```
 
@@ -182,7 +182,7 @@ This is the standard behavior for input functions across most programming langua
 ### Q: Why doesn't my REPL output show the result?
 **A:** It should now! The REPL automatically prints non-nil values returned by expressions:
 ```
-axm> 42
+axiom> 42
 42
 ```
 
@@ -253,11 +253,11 @@ let num = num(num_str);  // handles conversion
 ### Q: Can I use `out()` and `in()` in REPL?
 **A:** Yes! They work the same way as in scripts:
 ```
-axm> out("Test")
+axiom> out("Test")
 Test
-axm> let x = in();
+axiom> let x = in();
 > value
-axm> out(x)
+axiom> out(x)
 value
 ```
 
@@ -274,13 +274,13 @@ value
 ### Q: Can I redirect input from a file?
 **A:** Yes! `in()` reads from stdin, which can be redirected:
 ```bash
-axm run script.ax < input.txt
+axiom run script.ax < input.txt
 ```
 
 ### Q: Can I redirect output to a file?
 **A:** Yes! `out()` writes to stdout, which can be redirected:
 ```bash
-axm run script.ax > output.txt
+axiom run script.ax > output.txt
 ```
 
 ## Performance
@@ -290,8 +290,8 @@ axm run script.ax > output.txt
 
 ### Q: How do I optimize my code?
 **A:** 
-1. Use release builds: `cargo build --release --bin axm`
-2. Profile with system tools: `time axm run script.ax`
+1. Use release builds: `cargo build --release --bin axiom`
+2. Profile with system tools: `time axiom run script.ax`
 3. Avoid unnecessary list operations
 4. Use tail recursion when possible
 
@@ -390,7 +390,7 @@ Currently implemented but not fully wired to Tokio.
 **A:** Use:
 - `print()` for output
 - `debug()` for detailed output
-- `axm check` to verify syntax
+- `axiom check` to verify syntax
 
 ### Q: Can I use a debugger?
 **A:** Not yet. Debugger integration is planned.

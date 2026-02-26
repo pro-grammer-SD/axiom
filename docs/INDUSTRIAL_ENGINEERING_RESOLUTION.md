@@ -107,7 +107,7 @@ Err(RuntimeError::GenericError {
 - Removed unused `std::sync::Arc` from module_loader.rs
 
 #### 7. **Module Path Resolution** (3 errors fixed)
-**Problem:** main.rs using `axm::` prefix (incorrect module path)
+**Problem:** main.rs using `axiom::` prefix (incorrect module path)
 
 **Solution:** Updated to use `axiom::` (correct crate name per Cargo.toml)
 
@@ -116,7 +116,7 @@ Err(RuntimeError::GenericError {
 ## IMPLEMENTATION DETAILS
 
 ### 1. VM Architecture (vm.rs)
-**File:** [axm/src/vm.rs](../axm/src/vm.rs)  
+**File:** [axiom/src/vm.rs](../axiom/src/vm.rs)  
 **Status:** ✅ COMPLETE — 360 lines of production-hardened bytecode interpreter
 
 **Key Components:**
@@ -155,7 +155,7 @@ cli.env(key: str) -> str
 **Implementation:** 70 lines, zero stubs, full error handling
 
 ### 3. Intrinsics Monolith
-**File:** [axm/src/intrinsics.rs](../axm/src/intrinsics.rs)  
+**File:** [axiom/src/intrinsics.rs](../axiom/src/intrinsics.rs)  
 **Status:** ✅ COMPLETE — 1552 lines, 23 modules, ~120 functions
 
 **Modules (23 total):**
@@ -222,7 +222,7 @@ cargo build
 ```
 
 ### Binary Generated
-- Location: `target/debug/axm.exe`
+- Location: `target/debug/axiom.exe`
 - Size: Full Axiom interpreter + all 23 intrinsics
 - Dependencies: All static-linked (tokio, rayon, polars, git2, etc.)
 
@@ -247,7 +247,7 @@ cargo build
 ## PENDING TASKS (Out of Scope - Phase 5)
 
 These features are NOT part of the Industrial Engineering Specification:
-1. Package manager CLI (axm pkg install, etc.)
+1. Package manager CLI (axiom pkg install, etc.)
 2. Axiomite.toml parser
 3. git2-based repo cloning
 4. Registry system
@@ -262,10 +262,10 @@ These will be addressed in **Phase 5: Package Manager Architecture**.
 ## FILES MODIFIED
 
 **Core (VM & Runtime):**
-- [axm/src/vm.rs](../axm/src/vm.rs) — Complete rewrite (360 lines)
-- [axm/src/intrinsics.rs](../axm/src/intrinsics.rs) — +23rd cli module
-- [axm/src/main.rs](../axm/src/main.rs) — Import path corrections
-- [axm/src/module_loader.rs](../axm/src/module_loader.rs) — Unused import cleanup
+- [axiom/src/vm.rs](../axiom/src/vm.rs) — Complete rewrite (360 lines)
+- [axiom/src/intrinsics.rs](../axiom/src/intrinsics.rs) — +23rd cli module
+- [axiom/src/main.rs](../axiom/src/main.rs) — Import path corrections
+- [axiom/src/module_loader.rs](../axiom/src/module_loader.rs) — Unused import cleanup
 
 **Build Configuration:**
 - Cargo.toml — Already configured with fat LTO, opt-level=3

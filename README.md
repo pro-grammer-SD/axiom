@@ -65,16 +65,16 @@ Output
 cargo build --release
 ```
 
-This creates a single, statically-linked `axm` executable with **all 22 modules compiled in**.
+This creates a single, statically-linked `axiom` executable with **all 22 modules compiled in**.
 
 ### Run Examples
 
 ```bash
 # Run a simple example
-./target/release/axm examples/fib.ax
+./target/release/axiom examples/fib.ax
 
 # Run the comprehensive stdlib test
-./target/release/axm examples/stdlib_demo.ax
+./target/release/axiom examples/stdlib_demo.ax
 ```
 
 ### Comprehensive Stdlib Verification
@@ -82,7 +82,7 @@ This creates a single, statically-linked `axm` executable with **all 22 modules 
 The `stdlib_demo.ax` script exercises all 22 modules:
 
 ```bash
-./target/release/axm examples/stdlib_demo.ax
+./target/release/axiom examples/stdlib_demo.ax
 ```
 
 If this runs successfully, **the entire intrinsic monolith is verified**.
@@ -141,7 +141,7 @@ let counter = con.mutex_new(0);
 
 ```
 axiom/
-├── axm/                    # Main language compiler & runtime
+├── axiom/                    # Main language compiler & runtime
 │   └── src/
 │       ├── main.rs         # CLI entry point
 │       ├── lexer.rs        # Token generation (logos)
@@ -181,7 +181,7 @@ cd axiom
 cargo build --release
 ```
 
-Output: `target/release/axm` (statically-linked executable)
+Output: `target/release/axiom` (statically-linked executable)
 
 ### Run Tests
 
@@ -278,3 +278,58 @@ MIT License — See LICENSE file for details.
 ---
 
 **Status**: ✅ **Production Ready** — All 22 modules fully implemented, comprehensive testing via `stdlib_demo.ax`, zero external dependencies.
+
+---
+
+## ⚙️ Runtime Configuration
+
+Axiom uses a configuration file at **`~/.axiom/conf.txt`** (created automatically on first build/install).
+
+### Quick Start
+
+```bash
+axiom conf list                        # show all properties with current values
+axiom conf set nan_boxing=true         # enable NaN-boxing
+axiom conf get gc_mode                 # print current gc_mode value
+axiom conf describe peephole_optimizer # full documentation for one property
+axiom conf reset                       # restore all defaults
+```
+
+### Feature Toggle Properties (all default `true` for maximum performance)
+
+| Property | Default | Description |
+|---|---|---|
+| `nan_boxing` | `true` | NaN-boxed 64-bit value representation for the VM |
+| `bytecode_format` | `true` | Register-based bytecode execution (vs tree-walk fallback) |
+| `ic_enabled` | `true` | Inline-cache subsystem master switch (property/call ICs) |
+| `gc_enabled` | `true` | Garbage-collector master switch |
+| `peephole_optimizer` | `true` | Full static optimisation pipeline (fold, peephole, DCE, …) |
+| `profiling_enabled` | `true` | Runtime profiling infrastructure (counters, hot-loop detect) |
+
+### `~/.axiom/` Directory Layout
+
+```
+~/.axiom/
+├── conf.txt          — runtime configuration (all toggles & tuning knobs)
+├── bin/
+│   └── axiom           — installed binary (populated by `cargo build --release`)
+├── lib/              — reserved for future stdlib extensions
+└── cache/            — bytecode cache (when bytecode_cache=on)
+
+~/.axiomlibs/         — Axiomide package store
+```
+
+### All Configuration Categories
+
+| Category | Key properties |
+|---|---|
+| Feature Toggles | `nan_boxing`, `bytecode_format`, `ic_enabled`, `gc_enabled`, `peephole_optimizer`, `profiling_enabled` |
+| Debug | `debug`, `opcode_trace`, `gc_verbose`, `bounds_check`, `stack_trace_on_error` |
+| Inline Cache | `inline_cache`, `poly_ic_size`, `call_ic` |
+| Garbage Collector | `gc_mode`, `nursery_size_kb`, `gc_parallel` |
+| Optimization | `constant_folding`, `peephole`, `dead_code`, `jump_threading`, `superinstructions`, `opt_level` |
+| Specialization | `quickening`, `shape_optimization`, `quicken_threshold` |
+| Profiling | `profiling`, `opcode_counters`, `hot_loop_detect`, `hot_threshold`, `flame_graph` |
+| VM | `max_call_depth`, `register_count` |
+
+See `axiom conf list` and `axiom conf describe <property>` for full documentation.

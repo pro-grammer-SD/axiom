@@ -36,6 +36,11 @@ pub enum Token {
     Match,
     Els,        // Genesis syntax: wildcard in match
     Load,       // Module loading keyword
+    /// A raw library path token: @user/repo or @scope/lib-name
+    /// Emitted when lexer sees @ followed by path characters (alphanum / - . _)
+    LibPath(String),
+    /// Emitted when `//alias: name` appears as an inline comment
+    Alias(String),
 
     // Literals
     Number(f64),
@@ -120,6 +125,18 @@ impl Lexer {
                     self.advance();
                 }
                 Some('/') if self.peek(1) == Some('/') => {
+                    // Check if this is //alias: — do NOT skip; let next_token emit Alias
+                    // Pattern: // a l i a s :
+                    if self.peek(2) == Some('a')
+                        && self.peek(3) == Some('l')
+                        && self.peek(4) == Some('i')
+                        && self.peek(5) == Some('a')
+                        && self.peek(6) == Some('s')
+                        && self.peek(7) == Some(':')
+                    {
+                        break; // Stop — let next_token handle //alias:
+                    }
+                    // Normal single-line comment: skip to end of line
                     self.advance();
                     self.advance();
                     while let Some(ch) = self.current() {
@@ -320,6 +337,35 @@ impl Lexer {
                             self.advance();
                             Token::Star
                         }
+                        '/' if self.peek(1) == Some('/') => {
+                            // This must be //alias: at this point (skip_whitespace_and_comments stopped here)
+                            self.advance(); // consume first /
+                            self.advance(); // consume second /
+                            // Skip optional spaces before "alias:"
+                            while self.current() == Some(' ') { self.advance(); }
+                            // Consume "alias:"
+                            for expected in ['a', 'l', 'i', 'a', 's', ':'] {
+                                if self.current() == Some(expected) { self.advance(); }
+                            }
+                            // Skip optional spaces after colon
+                            while self.current() == Some(' ') { self.advance(); }
+                            // Read the alias identifier
+                            let alias_start = self.pos;
+                            while let Some(c) = self.current() {
+                                if c.is_alphanumeric() || c == '_' || c == '-' {
+                                    self.advance();
+                                } else {
+                                    break;
+                                }
+                            }
+                            let alias_name: String = self.input[alias_start..self.pos].iter().collect();
+                            // Skip rest of line
+                            while let Some(c) = self.current() {
+                                if c == '\n' { break; }
+                                self.advance();
+                            }
+                            Token::Alias(alias_name)
+                        }
                         '/' => {
                             self.advance();
                             Token::Slash
@@ -422,6 +468,21 @@ impl Lexer {
                         '.' => {
                             self.advance();
                             Token::Dot
+                        }
+                        '@' => {
+                            // Library path: @user/repo or @scope/lib-name
+                            // Read everything that could be part of a path: alphanum, /, -, _, .
+                            self.advance(); // consume '@'
+                            let path_start = self.pos;
+                            while let Some(c) = self.current() {
+                                if c.is_alphanumeric() || c == '/' || c == '-' || c == '_' || c == '.' {
+                                    self.advance();
+                                } else {
+                                    break;
+                                }
+                            }
+                            let path_body: String = self.input[path_start..self.pos].iter().collect();
+                            Token::LibPath(format!("@{}", path_body))
                         }
                         _ => {
                             self.advance();

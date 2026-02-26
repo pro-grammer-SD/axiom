@@ -34,6 +34,9 @@ pub enum Item {
     LoadStmt {
         path: String,
         is_lib: bool,  // true if loading from @user/lib format
+        /// Optional short alias registered alongside the full path.
+        /// Syntax: load "path"; //alias: shortname
+        alias: Option<String>,
         span: Span,
     },
     Statement(Stmt),

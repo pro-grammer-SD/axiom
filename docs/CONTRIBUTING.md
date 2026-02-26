@@ -64,7 +64,7 @@ Error: thread 'main' panicked at 'index out of bounds'
 
 Steps:
 1. Create file test.ax with: `fun f() { ret 0; }`
-2. Run: `axm run test.ax`
+2. Run: `axiom run test.ax`
 3. Observe: Crash
 
 Axiom version: 0.1.0
@@ -292,30 +292,30 @@ Source Code
 
 ### Key Modules
 
-- `axm/src/lexer.rs` - Tokenization
-- `axm/src/parser.rs` - Parsing
-- `axm/src/ast.rs` - AST definitions
-- `axm/src/semantic.rs` - Type checking
-- `axm/src/runtime.rs` - Execution
-- `axm/src/errors.rs` - Error types
-- `axm/src/core/value.rs` - Value representation
+- `axiom/src/lexer.rs` - Tokenization
+- `axiom/src/parser.rs` - Parsing
+- `axiom/src/ast.rs` - AST definitions
+- `axiom/src/semantic.rs` - Type checking
+- `axiom/src/runtime.rs` - Execution
+- `axiom/src/errors.rs` - Error types
+- `axiom/src/core/value.rs` - Value representation
 
 ### Adding a Feature
 
 Example: Add `abs()` function
 
 1. **Update AST** if needed
-   - Modify `axm/src/ast.rs`
+   - Modify `axiom/src/ast.rs`
 
 2. **Update Parser**
-   - Modify `axm/src/parser.rs`
+   - Modify `axiom/src/parser.rs`
    - Add test
 
 3. **Type Check**
-   - Modify `axm/src/semantic.rs`
+   - Modify `axiom/src/semantic.rs`
 
 4. **Implement Runtime**
-   - Modify `axm/src/runtime.rs`
+   - Modify `axiom/src/runtime.rs`
    - Add logic for `abs` evaluation
 
 5. **Add Tests**
@@ -356,7 +356,7 @@ mod tests {
 
 ```bash
 # In examples/ directory
-$ axm run test_feature.ax
+$ axiom run test_feature.ax
 # verify output
 ```
 
@@ -377,10 +377,10 @@ When contributing:
 
 ```bash
 # Build release binary
-cargo build --release --bin axm
+cargo build --release --bin axiom
 
 # Benchmark
-time ./target/release/axm run large_script.ax
+time ./target/release/axiom run large_script.ax
 ```
 
 ## Documentation Standards

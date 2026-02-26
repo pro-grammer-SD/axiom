@@ -258,8 +258,8 @@ impl Runtime {
         // Pass 1.5 — process load statements
         let mut env = Env::new();
         for item in &items {
-            if let Item::LoadStmt { path, is_lib, .. } = item {
-                self.handle_load(path, *is_lib, &mut env)?;
+            if let Item::LoadStmt { path, is_lib, alias, .. } = item {
+                self.handle_load(path, *is_lib, alias.as_deref(), &mut env)?;
             }
         }
 
@@ -284,11 +284,12 @@ impl Runtime {
     // Load module resolution
     // -----------------------------------------------------------------------
 
-    fn handle_load(&mut self, path: &str, is_lib: bool, env: &mut Env) -> Result<(), RuntimeError> {
+    fn handle_load(&mut self, path: &str, is_lib: bool, alias: Option<&str>, env: &mut Env) -> Result<(), RuntimeError> {
         use std::path::PathBuf;
+        use crate::pkg::AxiomiteConfig;
 
-        let resolved_path = if is_lib {
-            // @user/repo format — resolve to ~/.axiomlibs/user/repo/lib.ax
+        let (resolved_path, pkg_root) = if is_lib {
+            // @user/repo format — resolve to ~/.axiomlibs/user/repo/
             let home_dir = dirs::home_dir().ok_or_else(|| RuntimeError::GenericError {
                 message: "Cannot determine home directory for @-style load".to_string(),
                 span: Default::default(),
@@ -300,13 +301,58 @@ impl Runtime {
                     span: Default::default(),
                 });
             }
-            home_dir.join(".axiomlibs").join(parts[0]).join(parts[1]).join("lib.ax")
+            let root = home_dir.join(".axiomlibs").join(parts[0]).join(parts[1]);
+            let entry = root.join("lib.ax");
+            (entry, Some(root))
         } else {
-            // Local file path
-            PathBuf::from(path)
+            // Local file path — pkg_root is the directory containing the file
+            let p = PathBuf::from(path);
+            let root = p.parent().map(|pp| pp.to_path_buf());
+            (p, root)
         };
 
-        // Read the file
+        // ── LIFECYCLE: parse Axiomite.toml and inject [env] section ──────────
+        if let Some(ref root) = pkg_root {
+            let toml_path = root.join("Axiomite.toml");
+            if toml_path.exists() {
+                if let Ok(config) = AxiomiteConfig::from_file(&toml_path) {
+                    // Inject [env] into process environment AND VM globals
+                    for (key, value) in &config.env {
+                        std::env::set_var(key, value);
+                        self.globals.insert(key.clone(), AxValue::Str(value.clone()));
+                    }
+                    // Recursively load [dependencies]
+                    for dep_spec in &config.dependencies.requires {
+                        let dep_path = format!("@{}", dep_spec);
+                        let dep_is_lib = true;
+                        // Avoid double-loading: skip if already registered
+                        if !self.globals.contains_key(dep_spec.as_str()) {
+                            self.handle_load(&dep_path, dep_is_lib, None, env)?;
+                        }
+                    }
+                }
+            }
+
+            // ── LIFECYCLE: run init.ax if present ─────────────────────────────
+            let init_path = root.join("init.ax");
+            if init_path.exists() {
+                if let Ok(init_src) = std::fs::read_to_string(&init_path) {
+                    let mut init_parser = crate::Parser::new(&init_src, 0);
+                    if let Ok(init_items) = init_parser.parse() {
+                        for item in &init_items {
+                            self.register_decl(item);
+                        }
+                        for item in &init_items {
+                            if let Item::Statement(stmt) = item {
+                                self.exec_stmt(stmt, env)?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Read the main module file
         let source = std::fs::read_to_string(&resolved_path).map_err(|e| RuntimeError::GenericError {
             message: format!("Cannot load '{}': {}", resolved_path.display(), e),
             span: Default::default(),
@@ -319,16 +365,50 @@ impl Runtime {
             span: Default::default(),
         })?;
 
-        // Register all declarations from the loaded module
+        // Collect all declarations into a module namespace map
+        let module_map = Arc::new(DashMap::new());
+
+        // Register all declarations from the loaded module globally AND in module map
         for item in &loaded_items {
             self.register_decl(item);
+            // Also add functions/values to the module map for namespace access
+            if let Item::FunctionDecl { name, params, body, .. } = item {
+                module_map.insert(name.clone(), AxValue::Fun(Arc::new(
+                    crate::core::oop::AxCallable::UserDefined {
+                        params: params.clone(),
+                        body: body.clone(),
+                    }
+                )));
+            }
         }
 
-        // Execute statements from the loaded module
+        // Execute statements from the loaded module, collecting let-bindings into module map
         for item in &loaded_items {
             if let Item::Statement(stmt) = item {
-                self.exec_stmt(&stmt, env)?;
+                self.exec_stmt(stmt, env)?;
+                // Capture top-level let bindings into module map
+                if let Stmt::Let { name, .. } = stmt {
+                    if let Some(val) = self.globals.get(name) {
+                        module_map.insert(name.clone(), val.clone());
+                    } else if let Some(val) = env.get(name) {
+                        module_map.insert(name.clone(), val.clone());
+                    }
+                }
             }
+        }
+
+        let module_val = AxValue::Map(module_map);
+
+        // ── DUAL-NAMESPACE ALIASING ───────────────────────────────────────────
+        // Register under the full path name (sanitised as identifier)
+        let full_key = path.trim_start_matches('@').replace('/', ".").replace('-', "_");
+        self.globals.insert(full_key.clone(), module_val.clone());
+        // Also register the raw path for direct lookup (e.g. "@dev/math-lib")
+        self.globals.insert(path.to_string(), module_val.clone());
+
+        // Register under alias if provided (both point to same Arc<DashMap>)
+        if let Some(alias_name) = alias {
+            self.globals.insert(alias_name.to_string(), module_val.clone());
         }
 
         Ok(())
