@@ -1,10 +1,10 @@
 # Command-Line Interface (CLI)
 
-The `axiom` tool is the Axiom compiler and runtime. This guide covers all CLI commands.
+The `axm` tool is the Axiom compiler and runtime. This guide covers all CLI commands.
 
 ## Installation
 
-After building, `axiom` binary is at `target/debug/axiom` or `target/release/axiom`.
+After building, `axm` binary is at `target/debug/axm` or `target/release/axm`.
 
 Add to PATH:
 
@@ -21,7 +21,7 @@ Execute an Axiom script.
 
 **Syntax:**
 ```bash
-axiom run <FILE> [ARGS...]
+axm run <FILE> [ARGS...]
 ```
 
 **Arguments:**
@@ -31,13 +31,13 @@ axiom run <FILE> [ARGS...]
 **Examples:**
 ```bash
 # Run a simple script
-axiom run hello.ax
+axm run hello.ax
 
 # Run with arguments (planned)
-axiom run process.ax input.txt output.txt
+axm run process.ax input.txt output.txt
 
 # Run from different directory
-axiom run ../examples/greet.ax
+axm run ../examples/greet.ax
 ```
 
 **Output:**
@@ -49,7 +49,7 @@ Parse and type-check a file without executing.
 
 **Syntax:**
 ```bash
-axiom check <FILE>
+axm check <FILE>
 ```
 
 **Arguments:**
@@ -58,10 +58,10 @@ axiom check <FILE>
 **Examples:**
 ```bash
 # Check for syntax errors
-axiom check main.ax
+axm check main.ax
 
 # Validate without running
-axiom check mylib.ax
+axm check mylib.ax
 ```
 
 **Output:**
@@ -85,7 +85,7 @@ Reformat code to consistent style.
 
 **Syntax:**
 ```bash
-axiom format [--in-place] <FILE>
+axm format [--in-place] <FILE>
 ```
 
 **Arguments:**
@@ -95,13 +95,13 @@ axiom format [--in-place] <FILE>
 **Examples:**
 ```bash
 # Show formatted output
-axiom format messy.ax
+axm format messy.ax
 
 # Format in-place
-axiom format --in-place messy.ax
+axm format --in-place messy.ax
 
 # Short form
-axiom format -i messy.ax
+axm format -i messy.ax
 ```
 
 **Output:**
@@ -113,20 +113,20 @@ Interactive read-eval-print loop for experimentation.
 
 **Syntax:**
 ```bash
-axiom repl
+axm repl
 ```
 
 **No arguments.**
 
 **Examples:**
 ```bash
-$ axiom repl
+$ axm repl
 Axiom REPL (type 'exit' to quit)
-axiom> let x = 42;
-axiom> let y = x + 8;
-axiom> if y > 40 { true } else { false }
+axm> let x = 42;
+axm> let y = x + 8;
+axm> if y > 40 { true } else { false }
 true
-axiom> exit
+axm> exit
 Goodbye!
 ```
 
@@ -160,22 +160,22 @@ out(expression)
 
 **Examples:**
 ```bash
-axiom> out("Hello, World!")
+axm> out("Hello, World!")
 Hello, World!
 
-axiom> let x = 42;
-axiom> out(x)
+axm> let x = 42;
+axm> out(x)
 42
 
-axiom> out(true)
+axm> out(true)
 true
 
-axiom> let items = [1, 2, 3];
-axiom> out(items)
+axm> let items = [1, 2, 3];
+axm> out(items)
 [1, 2, 3]
 
-axiom> let person = {"name": "Alice", "age": 30};
-axiom> out(person)
+axm> let person = {"name": "Alice", "age": 30};
+axm> out(person)
 {name: Alice, age: 30}
 ```
 
@@ -199,19 +199,19 @@ in(prompt_str)    // Read with prompt printed first
 
 **Examples:**
 ```bash
-axiom> let name = in();
+axm> let name = in();
 > Alice
-axiom> out(name)
+axm> out(name)
 Alice
 
-axiom> let age = in("Enter your age: ");
+axm> let age = in("Enter your age: ");
 Enter your age: 30
-axiom> out(age)
+axm> out(age)
 30
 
-axiom> let color = in("Favorite color: ");
+axm> let color = in("Favorite color: ");
 Favorite color: blue
-axiom> out(color)
+axm> out(color)
 blue
 ```
 
@@ -235,27 +235,27 @@ blue
 
 **Without prompts:**
 ```bash
-axiom> out("What is your name?")
+axm> out("What is your name?")
 What is your name?
-axiom> let name = in();
+axm> let name = in();
 > Bob
-axiom> out("Hello, ")
+axm> out("Hello, ")
 Hello, 
-axiom> out(name)
+axm> out(name)
 Bob
-axiom> out("!")
+axm> out("!")
 !
 ```
 
 **With prompts (cleaner):**
 ```bash
-axiom> let name = in("What is your name? ");
+axm> let name = in("What is your name? ");
 What is your name? (user types: Bob, but it's NOT echoed)
-axiom> let age = in("Age: ");
+axm> let age = in("Age: ");
 Age: (user types: 25, but it's NOT echoed)
-axiom> out("Hello, ");
+axm> out("Hello, ");
 Hello, 
-axiom> out(name)
+axm> out(name)
 Bob
 ```
 
@@ -273,7 +273,7 @@ Bob
 
 **Syntax:**
 ```bash
-axiom pkg <SUBCOMMAND>
+axm pkg <SUBCOMMAND>
 ```
 
 #### pkg list
@@ -281,7 +281,7 @@ axiom pkg <SUBCOMMAND>
 List installed packages.
 
 ```bash
-axiom pkg list
+axm pkg list
 ```
 
 Output:
@@ -294,7 +294,7 @@ No packages installed
 Add a package (planned).
 
 ```bash
-axiom pkg add user/repo
+axm pkg add user/repo
 ```
 
 #### pkg install
@@ -302,7 +302,7 @@ axiom pkg add user/repo
 Install from manifest (planned).
 
 ```bash
-axiom pkg install
+axm pkg install
 ```
 
 Reads from `Axiomite.toml` in current directory.
@@ -312,44 +312,44 @@ Reads from `Axiomite.toml` in current directory.
 Remove a package (planned).
 
 ```bash
-axiom pkg remove user/repo
+axm pkg remove user/repo
 ```
 
 ## Global Flags
 
 **Help:**
 ```bash
-axiom --help
-axiom COMMAND --help
+axm --help
+axm COMMAND --help
 ```
 
 **Version:**
 ```bash
-axiom --version
+axm --version
 ```
 
 **Verbose output (planned):**
 ```bash
-axiom --verbose run main.ax
+axm --verbose run main.ax
 ```
 
 ## Environment Variables
 
-### axiom_PATH
+### AXM_PATH
 
 Set library search path:
 
 ```bash
-export axiom_PATH="/usr/local/lib/axiom:~/mylibs"
+export AXM_PATH="/usr/local/lib/axiom:~/mylibs"
 ```
 
-### axiom_DEBUG
+### AXM_DEBUG
 
 Enable debug output:
 
 ```bash
-export axiom_DEBUG=1
-axiom run main.ax
+export AXM_DEBUG=1
+axm run main.ax
 ```
 
 ## Configuration
@@ -387,26 +387,26 @@ See [Package Management](STDLIB.md#packages) for details.
 
 ```bash
 # Check for errors
-axiom check script.ax
+axm check script.ax
 
 # Run it
-axiom run script.ax
+axm run script.ax
 
 # Format before committing
-axiom format -i script.ax
+axm format -i script.ax
 ```
 
 ### Interactive Testing
 
 ```bash
 # Start REPL
-axiom repl
+axm repl
 
 # Try some code
-axiom> let x = [1, 2, 3];
-axiom> for item in x { }
-axiom> let double(n) { ret n * 2; }
-axiom> double(21)
+axm> let x = [1, 2, 3];
+axm> for item in x { }
+axm> let double(n) { ret n * 2; }
+axm> double(21)
 42
 ```
 
@@ -414,23 +414,23 @@ axiom> double(21)
 
 ```bash
 # Run test files
-axiom test
+axm test
 
 # Run specific test
-axiom test my_test.ax
+axm test my_test.ax
 
 # Run with coverage
-axiom test --coverage
+axm test --coverage
 ```
 
 ### Building Libraries (Planned)
 
 ```bash
 # Build library
-axiom build
+axm build
 
 # Build and publish
-axiom publish
+axm publish
 ```
 
 ## Exit Codes
@@ -450,8 +450,8 @@ axiom publish
 Build for maximum performance:
 
 ```bash
-cargo build --release --bin axiom
-./target/release/axiom run script.ax
+cargo build --release --bin axm
+./target/release/axm run script.ax
 ```
 
 Features:
@@ -465,18 +465,18 @@ Features:
 Faster compilation, slower runtime:
 
 ```bash
-cargo build --bin axiom
-./target/debug/axiom run script.ax
+cargo build --bin axm
+./target/debug/axm run script.ax
 ```
 
 ## Troubleshooting
 
-### "axiom: command not found"
+### "axm: command not found"
 
 Build from source and add to PATH:
 
 ```bash
-cargo build --release --bin axiom
+cargo build --release --bin axm
 export PATH="$PATH:$(pwd)/target/release"
 ```
 
@@ -486,8 +486,8 @@ Check file exists and path is correct:
 
 ```bash
 ls -la script.ax          # Check existence
-axiom run ./script.ax       # Use relative path
-axiom run /full/path/to/script.ax  # Use absolute path
+axm run ./script.ax       # Use relative path
+axm run /full/path/to/script.ax  # Use absolute path
 ```
 
 ### Script Has Syntax Errors
@@ -495,7 +495,7 @@ axiom run /full/path/to/script.ax  # Use absolute path
 Get detailed error messages:
 
 ```bash
-axiom check script.ax
+axm check script.ax
 ```
 
 ### REPL Won't Start
@@ -503,8 +503,8 @@ axiom check script.ax
 Ensure Axiom is properly built:
 
 ```bash
-cargo build --bin axiom
-./target/debug/axiom repl
+cargo build --bin axm
+./target/debug/axm repl
 ```
 
 ### Out of Memory
@@ -513,15 +513,15 @@ Axiom uses Arc and DashMap for efficiency, but large collections consume memory:
 
 ```bash
 # Use release build for optimizations
-cargo build --release --bin axiom
-./target/release/axiom run script.ax
+cargo build --release --bin axm
+./target/release/axm run script.ax
 ```
 
 ## Tips
 
-- Use `axiom check` before `axiom run` to catch errors early
-- Use `axiom format -i` to maintain consistent style
-- Use `axiom repl` to explore language features
+- Use `axm check` before `axm run` to catch errors early
+- Use `axm format -i` to maintain consistent style
+- Use `axm repl` to explore language features
 - Build in release mode for production code
 
 ## Advanced Usage
@@ -531,7 +531,7 @@ cargo build --release --bin axiom
 Set search path:
 
 ```bash
-export axiom_PATH="./libs:~/.axiom/libs"
+export AXM_PATH="./libs:~/.axiom/libs"
 ```
 
 ### Benchmarking
@@ -539,7 +539,7 @@ export axiom_PATH="./libs:~/.axiom/libs"
 Run with timing (planned):
 
 ```bash
-time axiom run benchmark.ax
+time axm run benchmark.ax
 ```
 
 ### Profiling
@@ -547,7 +547,7 @@ time axiom run benchmark.ax
 Generate profile data (planned):
 
 ```bash
-axiom run --profile script.ax
+axm run --profile script.ax
 ```
 
 ## See Also

@@ -7,7 +7,7 @@ This document describes the new **Static Intrinsic Monolith** architecture for A
 ### Key Changes
 
 1. **FROM**: Dynamic `.rax` modules loaded at runtime via `libloading`
-2. **TO**: 22 statically-linked Rust intrinsics compiled directly into `axiom` binary
+2. **TO**: 22 statically-linked Rust intrinsics compiled directly into `axm` binary
 3. **Module Access**: `mth.sqrt()`, `str.split()`, `dfm.read()` etc. work natively
 4. **No `std;` prefix needed**: All modules are globally available
 5. **Heap-based stack**: `Vec<StackFrame>` eliminates C-stack overflow for deep recursion
@@ -16,7 +16,7 @@ This document describes the new **Static Intrinsic Monolith** architecture for A
 
 ## Architecture Components
 
-### 1. Intrinsic Registry (`axiom/src/intrinsics.rs`)
+### 1. Intrinsic Registry (`axm/src/intrinsics.rs`)
 
 The **Global Switchboard** that maps module identifiers to their implementations:
 
@@ -114,7 +114,7 @@ now_ms = tim.now_ms();
 
 ## Adding New Intrinsic Functions
 
-### Step 1: Update `IntrinsicRegistry` in `axiom/src/intrinsics.rs`
+### Step 1: Update `IntrinsicRegistry` in `axm/src/intrinsics.rs`
 
 For example, adding `mth.max(a, b)`:
 
@@ -211,7 +211,7 @@ This allows `fib(35)` and deeper recursion **without hitting C-stack limits**.
 cargo build --release
 ```
 
-This produces `target/release/axiom` with all 22 modules statically linked.
+This produces `target/release/axm` with all 22 modules statically linked.
 
 ### No External Dependencies
 ```bash
@@ -221,7 +221,7 @@ This produces `target/release/axiom` with all 22 modules statically linked.
 # ... (22 .dll/$o/dylib files)
 
 # After:
-# axiom.exe (single binary, all 22 modules inside)
+# axm.exe (single binary, all 22 modules inside)
 ```
 
 ---
@@ -290,7 +290,7 @@ The heap-based stack handles this easily, even with exponential recursive depth.
 ## References
 
 - [LALRPOP Parser](docs/PARSER.md)
-- [Core AST](axiom/src/ast.rs)
-- [Intrinsics Registry](axiom/src/intrinsics.rs)
-- [Runtime Evaluation](axiom/src/runtime.rs)
+- [Core AST](axm/src/ast.rs)
+- [Intrinsics Registry](axm/src/intrinsics.rs)
+- [Runtime Evaluation](axm/src/runtime.rs)
 

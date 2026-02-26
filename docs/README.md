@@ -8,7 +8,7 @@ Welcome to the Axiom programming language! Axiom is a modern, compiled language 
 2. [Language Reference](LANGUAGE.md) - Complete syntax and grammar
 3. [Type System](TYPES.md) - Types, type inference, and type safety
 4. [Standard Library](STDLIB.md) - Built-in modules and functions
-5. [CLI Tool](CLI.md) - Using the axiom compiler and REPL
+5. [CLI Tool](CLI.md) - Using the axm compiler and REPL
 6. [Examples](EXAMPLES.md) - Sample programs and patterns
 7. [Error Reference](ERRORS.md) - Error codes and troubleshooting
 
@@ -16,8 +16,8 @@ Welcome to the Axiom programming language! Axiom is a modern, compiled language 
 
 Install Axiom:
 ```bash
-cargo build --release --bin axiom
-./target/release/axiom run hello.ax
+cargo build --release --bin axm
+./target/release/axm run hello.ax
 ```
 
 Create `hello.ax`:
@@ -27,7 +27,7 @@ let msg = "Hello, Axiom!";
 
 Run your program:
 ```bash
-axiom run hello.ax
+axm run hello.ax
 ```
 
 ## Key Features

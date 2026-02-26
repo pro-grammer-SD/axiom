@@ -14,10 +14,10 @@ This guide will help you install Axiom and write your first program.
 ```bash
 git clone https://github.com/your-repo/axiom.git
 cd axiom
-cargo build --release --bin axiom
+cargo build --release --bin axm
 ```
 
-The compiled binary will be at `target/release/axiom`.
+The compiled binary will be at `target/release/axm`.
 
 ### Add to PATH
 
@@ -33,7 +33,7 @@ $env:Path += ";$(pwd)\target\release"
 
 Or copy the binary directly:
 ```bash
-cp target/release/axiom ~/.local/bin/  # Linux/macOS
+cp target/release/axm ~/.local/bin/  # Linux/macOS
 ```
 
 ## Your First Program
@@ -48,7 +48,7 @@ let msg = "Hello, World!";
 ### Run It
 
 ```bash
-axiom run hello.ax
+axm run hello.ax
 ```
 
 ## The REPL
@@ -56,18 +56,18 @@ axiom run hello.ax
 For interactive exploration, start the REPL:
 
 ```bash
-axiom repl
+axm repl
 ```
 
 This gives you an interactive prompt where you can experiment:
 
 ```
-axiom> let x = 42;
-axiom> let y = x + 8;
-axiom> let nums = [1, 2, 3];
-axiom> if x > 40 { true } else { false }
+axm> let x = 42;
+axm> let y = x + 8;
+axm> let nums = [1, 2, 3];
+axm> if x > 40 { true } else { false }
 true
-axiom> exit
+axm> exit
 ```
 
 ## Basic Concepts
@@ -254,10 +254,10 @@ out({"color": "blue"});
 
 **In the REPL:**
 ```
-axiom> out("Testing")
+axm> out("Testing")
 Testing
-axiom> let x = 42;
-axiom> out(x)
+axm> let x = 42;
+axm> out(x)
 42
 ```
 
@@ -273,9 +273,9 @@ out(user_input);
 The `in()` function waits for the user to type a line and press Enter:
 
 ```
-axiom> let name = in();
+axm> let name = in();
 > Alice
-axiom> out(name)
+axm> out(name)
 Alice
 ```
 
@@ -291,9 +291,9 @@ let age = in("How old are you? ");
 The prompt is printed immediately without a newline, then Axiom waits for input:
 
 ```
-axiom> let name = in("What is your name? ");
+axm> let name = in("What is your name? ");
 What is your name? (user types but input is NOT echoed)
-axiom> let age = in("How old are you? ");
+axm> let age = in("How old are you? ");
 How old are you? (user types but input is NOT echoed)
 ```
 
@@ -323,7 +323,7 @@ out("! Welcome to Axiom!");
 
 **Running it:**
 ```bash
-$ axiom run greet.ax
+$ axm run greet.ax
 What is your name?
 > Bob
 Hello, Bob! Welcome to Axiom!
@@ -385,9 +385,9 @@ Both functions are completely type-safe:
 For example, if the user types nothing:
 
 ```
-axiom> let x = in();
+axm> let x = in();
 > 
-axiom> out(x)
+axm> out(x)
 
 ```
 
@@ -431,16 +431,16 @@ See [ERRORS.md](ERRORS.md) for error reference.
 
 ## Tips
 
-- Use `axiom check <file>` to verify syntax without running
-- Use `axiom format <file>` to normalize code
-- Use `axiom run <file>` to execute programs
-- Use `axiom repl` for interactive exploration
+- Use `axm check <file>` to verify syntax without running
+- Use `axm format <file>` to normalize code
+- Use `axm run <file>` to execute programs
+- Use `axm repl` for interactive exploration
 
 ## Troubleshooting
 
-**"axiom: command not found"**
-- Build from source: `cargo build --release --bin axiom`
-- Add to PATH or use full path: `./target/release/axiom run hello.ax`
+**"axm: command not found"**
+- Build from source: `cargo build --release --bin axm`
+- Add to PATH or use full path: `./target/release/axm run hello.ax`
 
 **"Undefined variable" errors**
 - Ensure you've declared the variable with `let`

@@ -31,16 +31,16 @@ axiom/
 │           ├── #[axiom_export]         # Function binding macro
 │           └── #[axiom_module]         # Module generation macro
 │
-├── axiom/                                 # Engine binary
+├── axm/                                 # Engine binary
 │   ├── Cargo.toml                       # Dependencies on axiom_sdk + axiom_macros
 │   ├── build.rs                         # ← [UPDATED] Installation + .rax deployment
 │   ├── src/
 │   │   ├── lib.rs                       # Module exports
 │   │   ├── main.rs                      # CLI orchestrator
-│   │   │   ├── axiom run <script>
-│   │   │   ├── axiom chk <script>
-│   │   │   ├── axiom fmt <script>
-│   │   │   └── axiom pkg <command>
+│   │   │   ├── axm run <script>
+│   │   │   ├── axm chk <script>
+│   │   │   ├── axm fmt <script>
+│   │   │   └── axm pkg <command>
 │   │   │
 │   │   ├── vm.rs                        # ← [NEW] Flat-loop VM engine
 │   │   │   ├── FlatVM struct            # No recursive calls
@@ -610,8 +610,8 @@ When the program calls `mth.sin(x)`:
 ### Core Infrastructure
 - ✅ [axiom_sdk/src/lib.rs] — AxValue enum (14 variants), AxiomModule trait, VMState
 - ✅ [axiom_macros/src/lib.rs] — #[axiom_export], #[axiom_module] macros
-- ✅ [axiom/src/vm.rs] — Flat-loop VM with 35+ instruction types
-- ✅ [axiom/src/module_loader.rs] — .rax loading with libloading
+- ✅ [axm/src/vm.rs] — Flat-loop VM with 35+ instruction types
+- ✅ [axm/src/module_loader.rs] — .rax loading with libloading
 
 ### 22 Modules (All Fully Implemented)
 - ✅ Logic Tier: mth, num, alg, ann, tim, str, col (7 modules, 52 functions)
@@ -626,8 +626,8 @@ When the program calls `mth.sin(x)`:
 
 ### Workspace Configuration
 - ✅ [Cargo.toml] — Updated to include all 26 crates
-- ✅ [axiom/Cargo.toml] — Includes axiom_sdk, axiom_macros, libloading
-- ✅ [axiom/build.rs] — Installation + deployment
+- ✅ [axm/Cargo.toml] — Includes axiom_sdk, axiom_macros, libloading
+- ✅ [axm/build.rs] — Installation + deployment
 
 ---
 
@@ -645,9 +645,9 @@ cargo build --release
 #    Linux/Mac: ~/.axiom/
 
 # 4. Run Axiom scripts
-~/.axiom/bin/axiom run script.ax
-~/.axiom/bin/axiom chk script.ax
-~/.axiom/bin/axiom fmt script.ax --write
+~/.axiom/bin/axm run script.ax
+~/.axiom/bin/axm chk script.ax
+~/.axiom/bin/axm fmt script.ax --write
 
 # 5. Verify module loading
 ls ~/.axiom/lib/          # See all 22 .rax files

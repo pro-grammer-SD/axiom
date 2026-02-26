@@ -65,16 +65,16 @@ Output
 cargo build --release
 ```
 
-This creates a single, statically-linked `axiom` executable with **all 22 modules compiled in**.
+This creates a single, statically-linked `axm` executable with **all 22 modules compiled in**.
 
 ### Run Examples
 
 ```bash
 # Run a simple example
-./target/release/axiom examples/fib.ax
+./target/release/axm examples/fib.ax
 
 # Run the comprehensive stdlib test
-./target/release/axiom examples/stdlib_demo.ax
+./target/release/axm examples/stdlib_demo.ax
 ```
 
 ### Comprehensive Stdlib Verification
@@ -82,7 +82,7 @@ This creates a single, statically-linked `axiom` executable with **all 22 module
 The `stdlib_demo.ax` script exercises all 22 modules:
 
 ```bash
-./target/release/axiom examples/stdlib_demo.ax
+./target/release/axm examples/stdlib_demo.ax
 ```
 
 If this runs successfully, **the entire intrinsic monolith is verified**.
@@ -141,7 +141,7 @@ let counter = con.mutex_new(0);
 
 ```
 axiom/
-├── axiom/                    # Main language compiler & runtime
+├── axm/                    # Main language compiler & runtime
 │   └── src/
 │       ├── main.rs         # CLI entry point
 │       ├── lexer.rs        # Token generation (logos)
@@ -181,7 +181,7 @@ cd axiom
 cargo build --release
 ```
 
-Output: `target/release/axiom` (statically-linked executable)
+Output: `target/release/axm` (statically-linked executable)
 
 ### Run Tests
 
@@ -288,11 +288,11 @@ Axiom uses a configuration file at **`~/.axiom/conf.txt`** (created automaticall
 ### Quick Start
 
 ```bash
-axiom conf list                        # show all properties with current values
-axiom conf set nan_boxing=true         # enable NaN-boxing
-axiom conf get gc_mode                 # print current gc_mode value
-axiom conf describe peephole_optimizer # full documentation for one property
-axiom conf reset                       # restore all defaults
+axm conf list                        # show all properties with current values
+axm conf set nan_boxing=true         # enable NaN-boxing
+axm conf get gc_mode                 # print current gc_mode value
+axm conf describe peephole_optimizer # full documentation for one property
+axm conf reset                       # restore all defaults
 ```
 
 ### Feature Toggle Properties (all default `true` for maximum performance)
@@ -312,7 +312,7 @@ axiom conf reset                       # restore all defaults
 ~/.axiom/
 ├── conf.txt          — runtime configuration (all toggles & tuning knobs)
 ├── bin/
-│   └── axiom           — installed binary (populated by `cargo build --release`)
+│   └── axm           — installed binary (populated by `cargo build --release`)
 ├── lib/              — reserved for future stdlib extensions
 └── cache/            — bytecode cache (when bytecode_cache=on)
 
@@ -332,4 +332,4 @@ axiom conf reset                       # restore all defaults
 | Profiling | `profiling`, `opcode_counters`, `hot_loop_detect`, `hot_threshold`, `flame_graph` |
 | VM | `max_call_depth`, `register_count` |
 
-See `axiom conf list` and `axiom conf describe <property>` for full documentation.
+See `axm conf list` and `axm conf describe <property>` for full documentation.

@@ -604,7 +604,7 @@ axiom_sdk (core value type)
     ↓
 modules/* (each imports axiom_sdk)
     ↓
-axiom engine (imports all modules + axiom_sdk)
+axm engine (imports all modules + axiom_sdk)
 ```
 
 ## Import Usage
