@@ -1,6 +1,75 @@
-# Axiom Language — Intrinsic Monolith Edition
+# 🔡 Axiom Language — Intrinsic Monolith Edition
 
-Axiom is a **statically-linked, monolithic high-performance language** with zero external module dependencies. All 22 standard library modules are directly embedded in the core binary as intrinsic Rust implementations, providing instant startup and guaranteed availability.
+Axiom is a **statically-linked, monolithic high-performance language** with zero external module dependencies. All 22 standard library modules are directly embedded in the core binary as intrinsic Rust implementations, providing instant startup and guaranteed availability. It can be upto 2-3x faster than Python!
+
+## 🎯 Benchmark It!
+
+### 🌟 Powershell:
+
+```
+$results = 1..10 | ForEach-Object {
+    $a = Measure-Command {
+        & ./target/release/axm run examples/core/fib_2.ax > $null
+    }
+
+    $p = Measure-Command {
+        python local/fib_2.py > $null
+    }
+
+    [PSCustomObject]@{
+        Run       = $_
+        Axiom_ms  = $a.TotalMilliseconds
+        Python_ms = $p.TotalMilliseconds
+    }
+}
+$results | Measure-Object Axiom_ms  -Average -Minimum -Maximum
+$results | Measure-Object Python_ms -Average -Minimum -Maximum
+
+```
+
+### 🌿 Bash:
+
+```
+#!/usr/bin/env bash
+
+runs=10
+axiom_times=()
+python_times=()
+
+for i in $(seq 1 $runs); do
+    start=$(date +%s%N)
+    ./target/release/axm run examples/core/fib_2.ax > /dev/null
+    end=$(date +%s%N)
+    axiom_times+=($(( (end - start) / 1000000 )))
+
+    start=$(date +%s%N)
+    python local/fib_2.py > /dev/null
+    end=$(date +%s%N)
+    python_times+=($(( (end - start) / 1000000 )))
+done
+
+compute_stats() {
+    local arr=("$@")
+    local sum=0
+    local min=${arr[0]}
+    local max=${arr[0]}
+
+    for v in "${arr[@]}"; do
+        (( sum += v ))
+        (( v < min )) && min=$v
+        (( v > max )) && max=$v
+    done
+
+    avg=$(( sum / ${#arr[@]} ))
+    echo "avg=${avg}ms min=${min}ms max=${max}ms"
+}
+
+echo "Axiom:"
+compute_stats "${axiom_times[@]}"
+
+echo "Python:"
+compute_stats "${python_times[@]}"
+```
 
 ## Key Highlights
 
