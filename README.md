@@ -1,6 +1,6 @@
 # 🔡 Axiom Language — Intrinsic Monolith Edition
 
-Axiom is a **statically-linked, monolithic high-performance language** with zero external module dependencies. All 22 standard library modules are directly embedded in the core binary as intrinsic Rust implementations, providing instant startup and guaranteed availability. It can be upto 10x faster than Python (tested from recursive fib(0 to 28) scripts)!
+Axiom is a **statically-linked, monolithic high-performance language** with zero external module dependencies. All 22 standard library modules are directly embedded in the core binary as intrinsic Rust implementations, providing instant startup and guaranteed availability. It can be upto 2-3x faster than Python!
 
 ## 🎯 Benchmark It!
 
