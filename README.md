@@ -4,6 +4,13 @@ Axiom is a **statically-linked, monolithic high-performance language** with zero
 
 ## 🎯 Benchmark It!
 
+### 🧑‍🚀 Hyperfine (Recommended):
+```
+cargo install hyperfine # or skip this step if you got it installed
+hyperfine --warmup 3 --runs 10 ".\target\release\axiom.exe run examples\core\fib_2.ax" "python .\local\fib_2.py" # run the benchmarks
+
+```
+
 ### 🌟 Powershell:
 
 ```
@@ -69,6 +76,7 @@ compute_stats "${axiom_times[@]}"
 
 echo "Python:"
 compute_stats "${python_times[@]}"
+
 ```
 
 ## Key Highlights
