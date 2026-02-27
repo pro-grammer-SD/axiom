@@ -5,14 +5,14 @@ fn main() {
 
 fn demo_simple_lambda() {
     // Inline lambda (anonymous function) bound to a variable
-    let add = fn(a, b) { return a + b }
+    let add = fn(a, b) { ret a + b }
     out add(3, 4)       // 7
 
     // Multi-statement lambda
     let summed = fn() {
         let x = 10
         let y = 20
-        return x + y
+        ret x + y
     }
     out summed()        // 30
 }
@@ -21,9 +21,9 @@ fn demo_closures() {
     // Nested named function captures x from make_adder's scope (AXM_402 was here)
     fn make_adder(x) {
         fn adder(y) {
-            return x + y
+            ret x + y
         }
-        return adder
+        ret adder
     }
     let add5 = make_adder(5)
     out add5(10)        // 15
@@ -33,7 +33,7 @@ fn demo_closures() {
 fn demo_higher_order() {
     // Pass a lambda to another function
     let nums = alg.range(5)
-    let doubled = alg.map(nums, fn(x) { return x * 2 })
+    let doubled = alg.map(nums, fn(x) { ret x * 2 })
     out doubled         // [0, 2, 4, 6, 8]
 }
 

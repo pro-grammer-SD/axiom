@@ -8,9 +8,9 @@
 
 fn make_adder(x) {
     fn adder(y) {
-        return x + y
+        ret x + y
     }
-    return adder
+    ret adder
 }
 
 let add5  = make_adder(5)
@@ -21,7 +21,7 @@ print("Closure — add10(7) = " + add10(7))
 // ── II. REGISTER-VM FIBONACCI (ITERATIVE) ─────────────────────────────────
 
 fn fib(n) {
-    if n <= 1 { return n }
+    if n <= 1 { ret n }
     let a = 0
     let b = 1
     let i = 2
@@ -31,15 +31,15 @@ fn fib(n) {
         b = t
         i = i + 1
     }
-    return b
+    ret b
 }
 print("fib(30) = " + fib(30))
 
 // ── III. TAIL-CALL OPTIMISED ACCUMULATOR ─────────────────────────────────
 
 fn sum_tco(n, acc) {
-    if n == 0 { return acc }
-    return sum_tco(n - 1, acc + n)
+    if n == 0 { ret acc }
+    ret sum_tco(n - 1, acc + n)
 }
 print("sum_tco(1000) = " + sum_tco(1000, 0))
 
