@@ -440,7 +440,7 @@ impl Profiler {
         let mips = if elapsed.as_secs_f64() > 0.001 {
             total as f64 / elapsed.as_secs_f64() / 1_000_000.0
         } else { 0.0 };
-        eprintln!("[axm profile] {:.3}s | {} instrs | {:.1} MIPS | {} hot loops",
+        eprintln!("[axiom profile] {:.3}s | {} instrs | {:.1} MIPS | {} hot loops",
             elapsed.as_secs_f64(), total, mips,
             self.hot_loops.hot_loops.lock().len());
     }

@@ -1,5 +1,5 @@
 [package]
-name = "axm"
+name = "axiom"
 version = "0.1.0"
 edition = "2021"
 authors = ["Axiom Contributors"]
@@ -60,11 +60,11 @@ anyhow = "1.0"
 semver = { version = "1.0", features = ["serde"] }
 
 [lib]
-name = "axm"
+name = "axiom"
 path = "src/lib.rs"
 
 [[bin]]
-name = "axm"
+name = "axiom"
 path = "src/main.rs"
 
 [build-dependencies]

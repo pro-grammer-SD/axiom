@@ -4,7 +4,7 @@ All runtime behaviour of the Axiom VM is controlled through a single
 key-value configuration file located at **`~/.axiom/conf.txt`**.
 
 The file is seeded with production-safe defaults on first build.  You can
-edit it by hand or through the `axm conf` CLI sub-commands.
+edit it by hand or through the `axiom conf` CLI sub-commands.
 
 ---
 
@@ -14,7 +14,7 @@ edit it by hand or through the `axm conf` CLI sub-commands.
 ~/.axiom/
 ├── conf.txt          ← runtime configuration (this document)
 ├── bin/
-│   └── axm           ← installed binary (populated by cargo build --release)
+│   └── axiom           ← installed binary (populated by cargo build --release)
 ├── lib/              ← reserved for future stdlib extensions
 └── cache/            ← bytecode cache (.axc files, when bytecode_cache=on)
 
@@ -30,13 +30,13 @@ exist, so upgrading the compiler never overwrites user customisations.
 
 ```bash
 # Read / write
-axm conf get  nan_boxing             # print current value
-axm conf set  nan_boxing=true        # update a property (saves immediately)
-axm conf list                        # show all properties (current vs default)
-axm conf reset                       # restore every property to its default
+axiom conf get  nan_boxing             # print current value
+axiom conf set  nan_boxing=true        # update a property (saves immediately)
+axiom conf list                        # show all properties (current vs default)
+axiom conf reset                       # restore every property to its default
 
 # Documentation
-axm conf describe peephole_optimizer # full spec for one property
+axiom conf describe peephole_optimizer # full spec for one property
 ```
 
 ---
@@ -169,7 +169,7 @@ on Windows, Linux, and macOS without any extra dependencies:
 
 If you need reliable cross-platform home-directory resolution in your own
 code, consider using the [`dirs`](https://crates.io/crates/dirs) crate (already
-a dependency of `axm`) or `std::env::var("HOME")` / `"USERPROFILE"`.
+a dependency of `axiom`) or `std::env::var("HOME")` / `"USERPROFILE"`.
 
 ---
 
@@ -189,5 +189,5 @@ nursery_size_kb=2048
 - One property per line
 - `=` as delimiter (no spaces required, but allowed)
 - Lines starting with `#` are comments
-- Unknown properties are silently ignored on load but rejected by `axm conf set`
+- Unknown properties are silently ignored on load but rejected by `axiom conf set`
 - Boolean properties accept: `on`, `off`, `true`, `false`, `yes`, `no`, `1`, `0`

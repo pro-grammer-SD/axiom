@@ -8,7 +8,7 @@
 
 ## CRITICAL FILES VERIFICATION
 
-### ✅ Core Intrinsics (axm/src/intrinsics.rs)
+### ✅ Core Intrinsics (axiom/src/intrinsics.rs)
 - **Lines:** 1000+
 - **Modules:** alg, ann, aut, clr, col, con, csv, dfm, env, git, ioo
 - **Functions:** 150+ raw implementations
@@ -16,7 +16,7 @@
 - **Backends:** rayon, polars, chrono, git2, dashmap, etc.
 - **Status:** PRODUCTION READY
 
-### ✅ Lexer Cleanup (axm/src/lexer.rs)
+### ✅ Lexer Cleanup (axiom/src/lexer.rs)
 - **Removed:** `Token::Std` enum variant
 - **Removed:** `"std" => Token::Std` keyword mapping
 - **Removed:** `std` from comments
@@ -24,14 +24,14 @@
 - **Backward Compatible:** All other keywords intact
 - **Status:** VERIFIED
 
-### ✅ Parser Restructuring (axm/src/parser.rs)
+### ✅ Parser Restructuring (axiom/src/parser.rs)
 - **Removed:** `Token::Std => self.parse_std_import()` match arm
 - **Removed:** `parse_std_import()` function
 - **Removed:** `Item::StdImport` from hoisting match
 - **Preserved:** LocImport and LibDecl for compatibility
 - **Status:** VERIFIED
 
-### ✅ AST Definition (axm/src/ast.rs)
+### ✅ AST Definition (axiom/src/ast.rs)
 - **Removed:** `StdImport { name: String, span: Span }` variant
 - **Preserved:** LocImport, LibDecl, FunctionDecl, ClassDecl, EnumDecl
 - **Status:** VERIFIED
@@ -39,7 +39,7 @@
 ### ✅ Build Configuration (Cargo.toml)
 - **Dependencies:** All 22 backends included (tokio, polars, git2, etc.)
 - **Package:** axiom-monolith
-- **Binary:** axm
+- **Binary:** axiom
 - **Optimization:** opt-level=3, fat LTO, strip=true
 - **Status:** VERIFIED
 
@@ -187,8 +187,8 @@ Check that these files exist and are modified:
 
 ```bash
 # Should show recent modification:
-ls -la axm/src/intrinsics.rs
-ls -la axm/src/lexer.rs
+ls -la axiom/src/intrinsics.rs
+ls -la axiom/src/lexer.rs
 ls -la setup.ps1
 ```
 
@@ -203,14 +203,14 @@ cd C:\Users\ADMIN\Desktop\programming\github_repos\axiom
 
 ```bash
 # Should show Axiom version
-axm --version
+axiom --version
 
 # Should execute successfully
-axm examples/fib.ax
+axiom examples/fib.ax
 
 # Test intrinsics
 echo 'out alg.range(5);' > test.ax
-axm test.ax
+axiom test.ax
 # Expected output: [0, 1, 2, 3, 4]
 ```
 
@@ -303,18 +303,18 @@ Run these to verify monolith:
 
 ```bash
 # 1. Test entry point
-axm examples/simple.ax
+axiom examples/simple.ax
 
 # 2. Test alg module
-echo 'out alg.sum([1,2,3,4,5]);' > test.ax && axm test.ax
+echo 'out alg.sum([1,2,3,4,5]);' > test.ax && axiom test.ax
 # Expected: 15
 
 # 3. Test git module  
-echo 'out git.branch(".");' > test.ax && axm test.ax
+echo 'out git.branch(".");' > test.ax && axiom test.ax
 # Expected: (your current branch name)
 
 # 4. Test file I/O
-echo 'let f = "test.txt"; ioo.write(f, "hello"); out ioo.read(f);' > test.ax && axm test.ax
+echo 'let f = "test.txt"; ioo.write(f, "hello"); out ioo.read(f);' > test.ax && axiom test.ax
 # Expected: hello
 ```
 
@@ -370,4 +370,4 @@ echo 'let f = "test.txt"; ioo.write(f, "hello"); out ioo.read(f);' > test.ax && 
 
 ---
 
-*For questions, refer to [MONOLITH_STDLIB.md](./docs/MONOLITH_STDLIB.md) or review source in [axm/src/intrinsics.rs](./axm/src/intrinsics.rs)*
+*For questions, refer to [MONOLITH_STDLIB.md](./docs/MONOLITH_STDLIB.md) or review source in [axiom/src/intrinsics.rs](./axiom/src/intrinsics.rs)*

@@ -113,10 +113,10 @@
 
 | File | Lines | Status | Changes |
 |------|-------|--------|---------|
-| [axm/src/vm.rs](../axm/src/vm.rs) | 360 | ✅ COMPLETE | Full rewrite: VMState, StackFrame, FlatVM |
-| [axm/src/intrinsics.rs](../axm/src/intrinsics.rs) | 1552 | ✅ COMPLETE | +cli module, fixed borrows, removed unused imports |
-| [axm/src/main.rs](../axm/src/main.rs) | 194 | ✅ COMPLETE | Import path corrections (axiom:: instead of axm::) |
-| [axm/src/module_loader.rs](../axm/src/module_loader.rs) | 85 | ✅ COMPLETE | Removed unused std::sync::Arc import |
+| [axiom/src/vm.rs](../axiom/src/vm.rs) | 360 | ✅ COMPLETE | Full rewrite: VMState, StackFrame, FlatVM |
+| [axiom/src/intrinsics.rs](../axiom/src/intrinsics.rs) | 1552 | ✅ COMPLETE | +cli module, fixed borrows, removed unused imports |
+| [axiom/src/main.rs](../axiom/src/main.rs) | 194 | ✅ COMPLETE | Import path corrections (axiom:: instead of axiom::) |
+| [axiom/src/module_loader.rs](../axiom/src/module_loader.rs) | 85 | ✅ COMPLETE | Removed unused std::sync::Arc import |
 
 ### Documentation Files (Created)
 
@@ -131,8 +131,8 @@
 
 ### Build Artifacts
 ```
-target/debug/axm.exe          ✅ Generated (debug build)
-target/release/axm.exe        ✅ Generated (optimized release)
+target/debug/axiom.exe          ✅ Generated (debug build)
+target/release/axiom.exe        ✅ Generated (optimized release)
 ```
 
 ### Build Output
@@ -211,7 +211,7 @@ Release Build:
 - ✅ Code quality verified
 
 ### Outstanding Items (Future Phase)
-- ⏳ Package manager (axm pkg install, etc.)
+- ⏳ Package manager (axiom pkg install, etc.)
 - ⏳ Axiomite.toml parser
 - ⏳ git2-based repo cloning
 - ⏳ Registry system

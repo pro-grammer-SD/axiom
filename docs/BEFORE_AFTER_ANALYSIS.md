@@ -210,9 +210,9 @@ fn col_set(args: Vec<AxValue>) -> AxValue {
 **Before:**
 ```rust
 // main.rs
-use axm::{Parser, Runtime, SemanticAnalyzer, format_source};
-use axm::pkg::PackageManager;
-// ❌ ERROR: axm is not defined in scope
+use axiom::{Parser, Runtime, SemanticAnalyzer, format_source};
+use axiom::pkg::PackageManager;
+// ❌ ERROR: axiom is not defined in scope
 ```
 
 **After:**

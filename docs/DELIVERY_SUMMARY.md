@@ -65,8 +65,8 @@ The Axiom language has been **fully architected** with:
   - Auto-generates init(), get_symbol(), list_exports(), metadata()
   - Simplifies module creation
 
-### 1.3 Flat-Loop VM (axm/src/vm.rs)
-**Location:** `axm/src/vm.rs` (600+ lines)
+### 1.3 Flat-Loop VM (axiom/src/vm.rs)
+**Location:** `axiom/src/vm.rs` (600+ lines)
 
 **Architecture:**
 - `FlatVM` struct with no recursive function calls
@@ -92,8 +92,8 @@ The Axiom language has been **fully architected** with:
 - `execute()` → main interpretation loop
 - `execute_binop()`, `execute_unop()` → operations
 
-### 1.4 Module Loader (axm/src/module_loader.rs)
-**Location:** `axm/src/module_loader.rs` (350+ lines)
+### 1.4 Module Loader (axiom/src/module_loader.rs)
+**Location:** `axiom/src/module_loader.rs` (350+ lines)
 
 **System: .rax Dynamic Libraries**
 - Each module is a separate compiled .so/.dll/.dylib
@@ -168,7 +168,7 @@ Entry: axiom_module_init() → MathModule
 ```toml
 [workspace]
 members = [
-  "axm",           # Engine binary
+  "axiom",           # Engine binary
   "axiom_sdk",     # Core SDK
   "axiom_macros",  # Procedural macros
   "modules/mth", "modules/num", ... "modules/con"  # 22 modules
@@ -183,13 +183,13 @@ strip = true       # Remove debug symbols
 ```
 
 ### 3.2 Plugin Architecture
-**Location:** `axm/build.rs`
+**Location:** `axiom/build.rs`
 
 ```
 1. Create ~/.axiom/bin/ and ~/.axiom/lib/
 2. Compile all 22 module crates as dynamic libraries
 3. Install .rax files to ~/.axiom/lib/
-4. Copy axm binary to ~/.axiom/bin/
+4. Copy axiom binary to ~/.axiom/bin/
 5. Update PATH (Windows Registry / Unix shell config)
 ```
 
@@ -215,7 +215,7 @@ cargo doc --open
 
 ## Part 4: Integration: Checker → VM → SDK
 
-### 4.1 The Checker (axm/src/chk.rs)
+### 4.1 The Checker (axiom/src/chk.rs)
 
 **Responsibilities:**
 - Semantic analysis (type checking, symbol validation)
@@ -230,7 +230,7 @@ cargo doc --open
 Raw AST → Check → [Type checking] → [Symbol validation] → Annotated AST
 ```
 
-### 4.2 The VM (axm/src/vm.rs)
+### 4.2 The VM (axiom/src/vm.rs)
 
 **Responsibilities:**
 - Bytecode compilation from checked AST
@@ -389,8 +389,8 @@ Instructions for:
 
 ### Testing
 - Unit tests in axiom_sdk/src/lib.rs (3 test cases)
-- Unit tests in axm/src/vm.rs (1 test case)
-- Unit tests in axm/src/module_loader.rs (1 test case)
+- Unit tests in axiom/src/vm.rs (1 test case)
+- Unit tests in axiom/src/module_loader.rs (1 test case)
 - Integration testing via command-line tools
 
 ### Documentation
@@ -425,7 +425,7 @@ axiom_macros/
 ├── Cargo.toml                        ← Macro dependencies (syn, quote, proc-macro2)
 └── src/lib.rs                        ← #[axiom_export], #[axiom_module] (100+ lines)
 
-axm/
+axiom/
 ├── Cargo.toml                        ← Engine dependencies
 ├── build.rs                          ← Installation script (100+ lines)
 ├── src/
@@ -489,13 +489,13 @@ import mth
 out @ mth.sin(mth.PI / 2)  // 1.0
 EOF
 
-axm run test.ax
+axiom run test.ax
 ```
 
 ### Verify Installation
 ```bash
 ls ~/.axiom/lib/ | wc -l    # Should show ~22 .rax files
-axm --version               # Should work
+axiom --version               # Should work
 ```
 
 ---

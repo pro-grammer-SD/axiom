@@ -13,7 +13,7 @@ let msg = "Hello, World!";
 
 Run:
 ```bash
-axm run hello.ax
+axiom run hello.ax
 ```
 
 ### Simple Arithmetic

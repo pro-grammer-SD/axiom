@@ -108,12 +108,12 @@ cd axiom
 cargo build --release
 ```
 
-**Output**: `target/release/axm` (single statically-linked executable)
+**Output**: `target/release/axiom` (single statically-linked executable)
 
 ### Run Comprehensive Verification
 
 ```bash
-./target/release/axm examples/stdlib_demo.ax
+./target/release/axiom examples/stdlib_demo.ax
 ```
 
 Expected: All 22 modules exercise successfully with no errors.
@@ -121,7 +121,7 @@ Expected: All 22 modules exercise successfully with no errors.
 ### Run Simple Example
 
 ```bash
-./target/release/axm examples/fib.ax
+./target/release/axiom examples/fib.ax
 ```
 
 ---

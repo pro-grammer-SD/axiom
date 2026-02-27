@@ -4,7 +4,7 @@
 
 The Axiom language consists of three integrated tiers:
 
-1. **Engine (axm)**: Flat-Loop Virtual Machine with heap-allocated stack
+1. **Engine (axiom)**: Flat-Loop Virtual Machine with heap-allocated stack
 2. **SDK (axiom_sdk)**: Core bridge with AxValue enum and Module system  
 3. **Standard Library (22 modules)**: Pre-compiled .rax files
 
@@ -66,7 +66,7 @@ pub enum AxValue {
     Class(Arc<AxClass>),                 // Type definition
     Instance(Arc<RwLock<AxInstance>>),   // Object
     Function(Arc<AxFunction>),           // Callable with closure
-    Module(Arc<AxModule>),               // Namespace
+    Module(Arc<axiomodule>),               // Namespace
     Bytecode(Arc<AxBytecode>),           // .rax reference
     Custom(String, Arc<dyn Any + Send + Sync>), // User extension
 }
@@ -82,7 +82,7 @@ extern "C" AxiomModule* axiom_module_init(void);
 
 #### Module Lifecycle
 ```
-1. User imports mth:    axm → ModuleLoader::load("mth")
+1. User imports mth:    axiom → ModuleLoader::load("mth")
 2. File lookup:         ~/.axiom/lib/axiom_mth.dll (Windows)
 3. Dynamic load:        libloading::Library::new()
 4. Symbol resolution:   library.get("axiom_module_init")
@@ -330,7 +330,7 @@ $ cargo build --release
 
 2. Copy to ~/.axiom/lib/
 
-3. Copy axm binary to ~/.axiom/bin/
+3. Copy axiom binary to ~/.axiom/bin/
 
 4. Update PATH:
    - Windows: Add to Registry HKLM\...\PATH
@@ -338,14 +338,14 @@ $ cargo build --release
 
 5. Create ~/.axiom/config.toml with module registry
 
-Result: `axm` command available from any terminal
+Result: `axiom` command available from any terminal
 ```
 
 #### Directory Structure After Installation
 ```
 ~/.axiom/
   ├── bin/
-  │   └── axm                    (or axm.exe on Windows)
+  │   └── axiom                    (or axiom.exe on Windows)
   ├── lib/
   │   ├── axiom_mth.dll          (Math module)
   │   ├── axiom_jsn.dll          (JSON module)
@@ -422,7 +422,7 @@ lock.unlock()
 ### Part 13: Module Dependency Graph
 
 ```
-axm (engine)
+axiom (engine)
   ├─→ axiom_sdk (value type + module trait)
   ├─→ axiom_macros (procedural macros)
   └─→ {22 module crates}
@@ -433,7 +433,7 @@ Import chains:
   axiom_sdk (no deps)
   axiom_macros (syn, quote, proc-macro2)
   modules/* (axiom_sdk + external)
-  axm (all of the above + libloading)
+  axiom (all of the above + libloading)
 ```
 
 ### Part 14: Performance Optimization Techniques
@@ -449,7 +449,7 @@ out @ fib(35)
 ```
 
 ```bash
-$ axm run script.ax
+$ axiom run script.ax
 # First run: compiles to bytecode, caches as script.axc
 # Second run: loads script.axc directly (100x faster)
 ```
@@ -548,7 +548,7 @@ axiom/
   ├── axiom_macros/
   │   ├── Cargo.toml
   │   └── src/lib.rs              # #[axiom_export], #[axiom_module] macros
-  ├── axm/
+  ├── axiom/
   │   ├── Cargo.toml              # Main binary dependencies
   │   ├── build.rs                # Installation logic
   │   └── src/
@@ -585,19 +585,19 @@ axiom/
 
 ```bash
 # Compile and run a script
-$ axm run script.ax
+$ axiom run script.ax
 
 # Type check without execution
-$ axm chk script.ax
+$ axiom chk script.ax
 
 # Format code
-$ axm fmt script.ax --write
+$ axiom fmt script.ax --write
 
 # Package management (future)
-$ axm pkg install matrix-lib/0.2.0
+$ axiom pkg install matrix-lib/0.2.0
 
 # Inspect module
-$ axm mod info mth
+$ axiom mod info mth
   >> Module: mth (Math)
   >> Version: 0.1.0
   >> Exports: sin, cos, tan, sqrt, pow, abs, ln, log10, PI, E, TAU, SQRT_2
@@ -656,7 +656,7 @@ Axiom (bytecode + JIT):
 
 ## Part 9: Module Map (Current Codebase)
 
-### `axm/src/` — Source Files
+### `axiom/src/` — Source Files
 
 | File | Role |
 |---|---|
@@ -681,10 +681,10 @@ Axiom (bytecode + JIT):
 | `loader.rs` | Module path resolution + file loading |
 | `module_loader.rs` | `import` / `require` logic |
 | `core/` | `AxValue` enum + OOP helpers |
-| `build_system.rs` | `axm build` orchestration |
+| `build_system.rs` | `axiom build` orchestration |
 | `pkg.rs` | Axiomide package manager |
 | `lib.rs` | Crate root — declares all modules, re-exports |
-| `main.rs` | CLI entry point (`axm run/chk/fmt/pkg/conf`) |
+| `main.rs` | CLI entry point (`axiom run/chk/fmt/pkg/conf`) |
 | `../build.rs` | Build script — lalrpop, dir creation, conf.txt seeding |
 | `../conf.txt` | Default configuration template (copied to `~/.axiom/conf.txt`) |
 

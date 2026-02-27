@@ -4,10 +4,10 @@
 /// Format: property=value (one per line, comments with #)
 ///
 /// CLI:
-///   axm conf set property=value
-///   axm conf get property
-///   axm conf list
-///   axm conf reset
+///   axiom conf set property=value
+///   axiom conf get property
+///   axiom conf list
+///   axiom conf reset
 ///
 /// Properties are grouped by subsystem and documented extensively.
 
@@ -600,7 +600,7 @@ impl AxConf {
     pub fn set(&mut self, key: &str, value: &str) -> Result<(), String> {
         // Validate key exists
         if !ALL_PROPS.iter().any(|p| p.name == key) {
-            return Err(format!("Unknown configuration property: '{}'\nRun `axm conf list` to see all properties.", key));
+            return Err(format!("Unknown configuration property: '{}'\nRun `axiom conf list` to see all properties.", key));
         }
         self.values.insert(key.to_string(), value.to_string());
         self.save()
@@ -615,8 +615,8 @@ impl AxConf {
 
         let mut out = String::new();
         out.push_str("# Axiom Configuration — ~/.axiom/conf.txt\n");
-        out.push_str("# Edit manually or use: axm conf set property=value\n");
-        out.push_str("# Reset to defaults:   axm conf reset\n\n");
+        out.push_str("# Edit manually or use: axiom conf set property=value\n");
+        out.push_str("# Reset to defaults:   axiom conf reset\n\n");
 
         let mut by_category: Vec<(&PropDef, &str)> = ALL_PROPS.iter()
             .map(|p| (p, self.values.get(p.name).map(|s| s.as_str()).unwrap_or(p.default)))
@@ -677,7 +677,7 @@ impl AxConf {
     pub fn describe(&self, key: &str) {
         let prop = ALL_PROPS.iter().find(|p| p.name == key);
         match prop {
-            None => println!("Unknown property: '{}'. Run `axm conf list` to see all.", key),
+            None => println!("Unknown property: '{}'. Run `axiom conf list` to see all.", key),
             Some(p) => {
                 let current = self.get(p.name).unwrap_or(p.default);
                 println!("┌─ {} ─────────────────────────────────────────────────────────", p.name);
@@ -790,7 +790,7 @@ fn textwrap(s: &str, width: usize) -> Vec<String> {
 
 pub fn cmd_conf_set(spec: &str) -> Result<(), String> {
     let (k, v) = spec.split_once('=').ok_or_else(||
-        format!("Invalid format. Use: axm conf set property=value\n  Got: '{}'", spec)
+        format!("Invalid format. Use: axiom conf set property=value\n  Got: '{}'", spec)
     )?;
     let k = k.trim();
     let v = v.trim();
