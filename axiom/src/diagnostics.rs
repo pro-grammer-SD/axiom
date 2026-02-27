@@ -155,7 +155,7 @@ impl ErrorCode {
                 "A valid number contains at most one decimal point: `3.14` not `3.1.4`.",
             Self::UnexpectedToken =>
                 "Remove or replace the unrecognized character. See the Axiom character set in docs/syntax-ref.md.",
-            _ => "See https://docs.axiom-lang.dev/errors for full documentation.",
+            _ => "See https://github.com/pro-grammer-SD/axiom/blob/main/docs/syntax-ref.md for full documentation.",
         }
     }
 }
