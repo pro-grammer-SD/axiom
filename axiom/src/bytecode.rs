@@ -246,7 +246,7 @@ impl Instr {
     }
 
     // iAx: op=8, Ax=24
-    #[inline] pub fn ax(op: Op, ax: u32) -> Self {
+    #[inline] pub fn new_ax(op: Op, ax: u32) -> Self {
         Instr((op as u32) | (ax << 8))
     }
 
@@ -258,24 +258,22 @@ impl Instr {
     #[inline] pub fn b(self) -> u8 { ((self.0 >> 16) & 0xFF) as u8 }
     #[inline] pub fn c(self) -> u8 { ((self.0 >> 24) & 0xFF) as u8 }
     #[inline] pub fn bx(self) -> u16 { ((self.0 >> 16) & 0xFFFF) as u16 }
-
-    // Fixed sbx: Using wrapping arithmetic with i16::MIN
-    #[inline] pub fn sbx(self) -> i16 {
-        ((self.0 >> 16) as i16).wrapping_sub(i16::MIN)
+    
+    // Fixed: Simplified using wrapping_sub with the minimum value
+    #[inline] pub fn sbx(self) -> i16 { 
+        ((self.0 >> 16) as u16).wrapping_sub(32768) as i16 
     }
-
+    
     #[inline] pub fn get_ax(self) -> u32 { self.0 >> 8 }
 
-    // Correct sbx decoder (bias of 32768)
+    // Fixed: Cast to i32 first to handle the bias subtraction safely
     #[inline] pub fn get_sbx(self) -> i16 {
         let raw = ((self.0 >> 16) & 0xFFFF) as u16;
-        // Perform arithmetic in i32 to avoid literal range errors
         (raw as i32 - 32768) as i16
     }
 
     // Patch the jump offset in-place (for back-patching)
     #[inline] pub fn patch_sbx(&mut self, sbx: i16) {
-        // Bias the signed value back into an unsigned range
         let biased = (sbx as i32 + 32768) as u16;
         self.0 = (self.0 & 0x0000_FFFF) | ((biased as u32) << 16);
     }

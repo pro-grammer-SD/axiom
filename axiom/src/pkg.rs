@@ -62,7 +62,7 @@ impl PackageManager {
         Ok(PackageManager { libs_dir })
     }
 
-    /// Install a package from GitHub: `axiom pkg add <user>/<repo>`.
+    /// Install a package from GitHub: `axm pkg add <user>/<repo>`.
     pub fn install_package(&self, github_spec: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
         let parts: Vec<&str> = github_spec.split('/').collect();
         if parts.len() != 2 {
@@ -358,7 +358,7 @@ other_lib = "0.1.0"
 
 impl PackageManager {
     /// Upgrade a package: compare local semver vs remote HEAD, re-clone if newer.
-    /// Usage: axiom pkg upgrade <user>/<repo>
+    /// Usage: axm pkg upgrade <user>/<repo>
     pub fn upgrade_package(&self, github_spec: &str) -> Result<bool, Box<dyn std::error::Error>> {
         let parts: Vec<&str> = github_spec.split('/').collect();
         if parts.len() != 2 {
@@ -449,7 +449,7 @@ impl PackageManager {
         Ok(true)
     }
 
-    /// Auto-detect local Axiomite.toml and display metadata (axiom pkg info .)
+    /// Auto-detect local Axiomite.toml and display metadata (axm pkg info .)
     pub fn show_local_info(&self) -> Result<(), Box<dyn std::error::Error>> {
         let manifest = std::env::current_dir()?.join("Axiomite.toml");
         if !manifest.exists() {

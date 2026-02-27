@@ -1,3 +1,1 @@
-The project binary has been renamed from axiom to axm.
-All usage should now reference axm.
-Note: some documentation may still contain outdated references to axiom.
+UPDATE: The binary is "axiom" back again.

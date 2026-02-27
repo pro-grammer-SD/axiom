@@ -1,38 +1,39 @@
-/// Axiom Language Library
+/// Axiom Language — Library Root
 ///
-/// Module layout:
-///   - conf         — runtime configuration (toggles, ~/.axiom/conf.txt)
-///   - nanbox       — NaN-boxed value representation
-///   - bytecode     — instruction set, Proto, encoding/decoding
-///   - compiler     — AST → bytecode compiler
-///   - optimizer    — static bytecode optimisation pipeline
-///   - inline_cache — property / call inline caches + shape system
-///   - gc           — generational garbage collector
-///   - profiler     — opcode counters, hot-loop detection, flame graph
-///   - vm           — register-VM interpreter
-///   - runtime      — high-level Runtime (conf + VM wiring)
-///   - ast / lexer / parser — front-end
-///   - chk          — semantic analysis
-///   - fmt          — source formatter
-///   - intrinsics   — built-in functions
-///   - jit          — experimental trace-JIT stub
-///   - loader       — module resolution + file loading
-///   - module_loader— import / require logic
-///   - build_system — axiom build orchestration
-///   - pkg          — Axiomide package manager
-///   - core         — value types (AxValue) and OOP helpers
+/// Module map
+/// ──────────
+///   Front-end
+///     ast           — Abstract Syntax Tree node types
+///     lexer         — Tokeniser
+///     parser        — Recursive-descent parser → AST
+///     chk           — Semantic analyser (symbol resolution, type inference)
+///     fmt           — Source formatter
+///     errors        — Diagnostic / error types with source spans
+///
+///   Compilation
+///     bytecode      — Instruction set (Op), Proto, Instr encoding/decoding
+///     compiler      — AST → register bytecode (compile_program)
+///     optimizer     — Peephole + constant-fold passes on Proto
+///
+///   Execution
+///     vm_core       — Register-based bytecode VM (Val, VmCore)
+///     runtime       — High-level Runtime: compile → VM → tree-walk fallback
+///
+///   Runtime support
+///     nanbox        — NaN-boxed 64-bit value representation
+///     inline_cache  — Polymorphic inline caches + shape system
+///     gc            — Generational garbage collector
+///     profiler      — Opcode counters, hot-loop detection, flame graph
+///     conf          — Runtime configuration (toggles, ~/.axiom/conf.txt)
+///     intrinsics    — Statically-linked standard library (23 modules)
+///     jit           — Experimental trace-JIT stub
+///     loader        — Module file resolution + loading
+///
+///   Packaging
+///     pkg           — Axiomite package manager (Axiomite.toml, deps)
+///     core          — AxValue, AxCallable, AxClass, AxInstance
 
-// ── Core VM modules ──────────────────────────────────────────────────────────
-pub mod conf;
-pub mod nanbox;
-pub mod bytecode;
-pub mod compiler;
-pub mod optimizer;
-pub mod inline_cache;
-pub mod gc;
-pub mod profiler;
-
-// ── Front-end / language ──────────────────────────────────────────────────────
+// ── Compilation pipeline ──────────────────────────────────────────────────────
 pub mod ast;
 pub mod lexer;
 pub mod parser;
@@ -40,18 +41,32 @@ pub mod chk;
 pub mod fmt;
 pub mod errors;
 
-// ── Runtime, system & utilities ──────────────────────────────────────────────
-pub mod vm;
+// ── Bytecode layer ────────────────────────────────────────────────────────────
+pub mod bytecode;
+pub mod compiler;
+pub mod optimizer;
+
+// ── Execution ─────────────────────────────────────────────────────────────────
+pub mod vm_core;
 pub mod runtime;
+
+// ── Runtime support ───────────────────────────────────────────────────────────
+pub mod nanbox;
+pub mod inline_cache;
+pub mod gc;
+pub mod profiler;
+pub mod conf;
 pub mod intrinsics;
 pub mod jit;
 pub mod loader;
-pub mod module_loader;
+
+// ── Core value types ─────────────────────────────────────────────────────────
 pub mod core;
-pub mod build_system;
+
+// ── Package management ────────────────────────────────────────────────────────
 pub mod pkg;
 
-// ── Re-exports for convenience ────────────────────────────────────────────────
+// ── Public re-exports ─────────────────────────────────────────────────────────
 pub use ast::Item;
 pub use chk::SemanticAnalyzer;
 pub use conf::AxConf;

@@ -1,3 +1,4 @@
+#![allow(unreachable_patterns)]
 /// Complete lexer for Axiom language — Production Quality
 ///
 /// FEATURES:
@@ -337,35 +338,6 @@ impl Lexer {
                             self.advance();
                             Token::Star
                         }
-                        '/' if self.peek(1) == Some('/') => {
-                            // This must be //alias: at this point (skip_whitespace_and_comments stopped here)
-                            self.advance(); // consume first /
-                            self.advance(); // consume second /
-                            // Skip optional spaces before "alias:"
-                            while self.current() == Some(' ') { self.advance(); }
-                            // Consume "alias:"
-                            for expected in ['a', 'l', 'i', 'a', 's', ':'] {
-                                if self.current() == Some(expected) { self.advance(); }
-                            }
-                            // Skip optional spaces after colon
-                            while self.current() == Some(' ') { self.advance(); }
-                            // Read the alias identifier
-                            let alias_start = self.pos;
-                            while let Some(c) = self.current() {
-                                if c.is_alphanumeric() || c == '_' || c == '-' {
-                                    self.advance();
-                                } else {
-                                    break;
-                                }
-                            }
-                            let alias_name: String = self.input[alias_start..self.pos].iter().collect();
-                            // Skip rest of line
-                            while let Some(c) = self.current() {
-                                if c == '\n' { break; }
-                                self.advance();
-                            }
-                            Token::Alias(alias_name)
-                        }
                         '/' => {
                             self.advance();
                             Token::Slash
@@ -483,6 +455,35 @@ impl Lexer {
                             }
                             let path_body: String = self.input[path_start..self.pos].iter().collect();
                             Token::LibPath(format!("@{}", path_body))
+                        }
+                        '/' if self.peek(1) == Some('/') => {
+                            // This must be //alias: at this point (skip_whitespace_and_comments stopped here)
+                            self.advance(); // consume first /
+                            self.advance(); // consume second /
+                            // Skip optional spaces before "alias:"
+                            while self.current() == Some(' ') { self.advance(); }
+                            // Consume "alias:"
+                            for expected in ['a', 'l', 'i', 'a', 's', ':'] {
+                                if self.current() == Some(expected) { self.advance(); }
+                            }
+                            // Skip optional spaces after colon
+                            while self.current() == Some(' ') { self.advance(); }
+                            // Read the alias identifier
+                            let alias_start = self.pos;
+                            while let Some(c) = self.current() {
+                                if c.is_alphanumeric() || c == '_' || c == '-' {
+                                    self.advance();
+                                } else {
+                                    break;
+                                }
+                            }
+                            let alias_name: String = self.input[alias_start..self.pos].iter().collect();
+                            // Skip rest of line
+                            while let Some(c) = self.current() {
+                                if c == '\n' { break; }
+                                self.advance();
+                            }
+                            Token::Alias(alias_name)
                         }
                         _ => {
                             self.advance();

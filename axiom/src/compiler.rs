@@ -144,10 +144,6 @@ impl<'g> Compiler<'g> {
         dst
     }
 
-    pub fn intern_global(&mut self, name: &str) -> u16 {
-        self.globals.intern(name)
-    }
-
     fn emit_store_global(&mut self, src: u8, name: &str) {
         let idx = self.globals.intern(name);
         self.emit(Instr::abx(Op::StoreGlobal, src, idx));
@@ -159,6 +155,7 @@ impl<'g> Compiler<'g> {
 
     /// Compile an expression into destination register `dst`.
     /// Returns the actual register holding the result.
+    #[allow(unreachable_patterns)]
     pub fn compile_expr(&mut self, expr: &Expr, dst: u8) -> u8 {
         match expr {
             Expr::Number { value, .. } => {
@@ -413,6 +410,7 @@ impl<'g> Compiler<'g> {
                 }
 
                 // Use abc(dst, base, count): b=base reg, c=count — no post-emit patching needed.
+                // Both base and count fit in u8 (max 255 regs / 255-element literal list).
                 self.emit(Instr::abc(Op::NewList, dst, start, count as u8));
 
                 for r in item_regs.into_iter().skip(1).rev() {
@@ -479,6 +477,12 @@ impl<'g> Compiler<'g> {
                 let proto_idx = self.proto.protos.len() as u16;
                 self.proto.protos.push(lambda_compiler.proto);
                 self.emit(Instr::abx(Op::Closure, dst, proto_idx));
+                dst
+            }
+
+            // Fallback
+            _ => {
+                self.emit(Instr::abc(Op::LoadNil, dst, 0, 0));
                 dst
             }
         }
@@ -725,60 +729,75 @@ impl<'g> Compiler<'g> {
 pub fn compile_program(items: &[Item], source: &str) -> (Proto, GlobalTable) {
     let mut globals = GlobalTable::new();
 
-    // Pre-intern standard globals
+    // Pre-intern standard globals so the VM can index them by u16
     for name in &["out", "print", "in", "str", "int", "bol", "type", "nil",
                    "sqrt", "abs", "floor", "ceil", "pow", "min", "max", "avg",
                    "alg", "ann", "aut", "clr", "col", "con", "csv", "dfm",
                    "env", "git", "ioo", "jsn", "log", "mth", "net", "num",
-                   "plt", "pth", "str", "sys", "tim", "tui", "cli"] {
+                   "plt", "pth", "sys", "tim", "tui", "cli",
+                   "chdir", "cwd", "__load"] {
         globals.intern(name);
     }
 
-    // First pass: compile function declarations before creating the main compiler,
-    // so we don't create a second mutable borrow of `globals` while it's already
-    // held by `compiler`.
-    struct FnEntry { name: String, proto: Proto }
-    let mut fn_entries: Vec<FnEntry> = Vec::new();
+    // Pre-intern all user-declared names so we can reference them without a
+    // second live borrow on globals later.
     for item in items {
-        if let Item::FunctionDecl { name, params, body, .. } = item {
-            let mut fn_compiler = Compiler::new(
-                format!("{}:{}", source, name),
-                &mut globals,
-            );
-            for p in params {
-                fn_compiler.regs.alloc_local(p);
-            }
-            for stmt in body {
-                fn_compiler.compile_stmt(stmt);
-            }
-            let last = fn_compiler.proto.code.last().map(|i| i.op());
-            if !matches!(last, Some(Op::Return) | Some(Op::ReturnNil) | Some(Op::NilReturn)) {
-                fn_compiler.emit(Instr::abc(Op::ReturnNil, 0, 0, 0));
-            }
-            fn_compiler.proto.reg_count = fn_compiler.regs.reg_count();
-            fn_compiler.proto.param_count = params.len() as u8;
-            fn_entries.push(FnEntry { name: name.to_string(), proto: fn_compiler.proto });
+        match item {
+            Item::FunctionDecl { name, .. } => { globals.intern(name); }
+            Item::ClassDecl    { name, .. } => { globals.intern(name); }
+            _ => {}
         }
     }
 
+    // ── Pass 1: compile every function body into its own Proto ───────────────
+    // Each fn_compiler borrows globals exclusively, then is dropped before the
+    // next one is created — this avoids the double-borrow compile error.
+    let mut fn_protos: Vec<(String, Proto)> = Vec::new();
+
+    for item in items {
+        if let Item::FunctionDecl { name, params, body, .. } = item {
+            let compiled_proto = {
+                let mut fn_compiler = Compiler::new(
+                    format!("{}:{}", source, name),
+                    &mut globals,
+                );
+                for p in params {
+                    fn_compiler.regs.alloc_local(p);
+                }
+                for stmt in body {
+                    fn_compiler.compile_stmt(stmt);
+                }
+                let last = fn_compiler.proto.code.last().map(|i| i.op());
+                if !matches!(last, Some(Op::Return) | Some(Op::ReturnNil) | Some(Op::NilReturn)) {
+                    fn_compiler.emit(Instr::abc(Op::ReturnNil, 0, 0, 0));
+                }
+                fn_compiler.proto.reg_count = fn_compiler.regs.reg_count();
+                fn_compiler.proto.param_count = params.len() as u8;
+                fn_compiler.proto
+            }; // fn_compiler dropped here — globals borrow released
+            fn_protos.push((name.clone(), compiled_proto));
+        }
+    }
+
+    // ── Pass 2: build the top-level Proto ────────────────────────────────────
+    // All fn_compilers are gone; we can now hold the single main compiler.
     let mut compiler = Compiler::new(source, &mut globals);
 
-    // Register compiled function protos into the main compiler
-    for entry in fn_entries {
+    // Hoist compiled function closures into globals
+    for (name, proto) in fn_protos {
         let proto_idx = compiler.proto.protos.len() as u16;
-        compiler.proto.protos.push(entry.proto);
+        compiler.proto.protos.push(proto);
         let t = compiler.regs.alloc_temp();
         compiler.emit(Instr::abx(Op::Closure, t, proto_idx));
-        compiler.emit_store_global(t, &entry.name);
+        compiler.emit_store_global(t, &name);
         compiler.regs.free_temp(t);
     }
 
-    // Hoist class declarations
+    // Hoist class placeholders (class bodies executed by the runtime)
     for item in items {
         if let Item::ClassDecl { name, .. } = item {
-            // Emit NewObj placeholder — class setup done by runtime
+            let class_idx = compiler.globals.intern(name);
             let t = compiler.regs.alloc_temp();
-            let class_idx = compiler.intern_global(name);
             compiler.emit(Instr::abx(Op::LoadGlobal, t, class_idx));
             compiler.regs.free_temp(t);
         }
@@ -788,8 +807,7 @@ pub fn compile_program(items: &[Item], source: &str) -> (Proto, GlobalTable) {
     for item in items {
         match item {
             Item::Statement(stmt) => { compiler.compile_stmt(stmt); }
-            Item::LoadStmt { path, is_lib: _, alias, .. } => {
-                // Emit a Call to internal __load function
+            Item::LoadStmt { path, alias, .. } => {
                 let t_fn = compiler.regs.alloc_temp();
                 compiler.emit_load_global(t_fn, "__load");
                 let t_path = compiler.regs.alloc_temp();
@@ -797,15 +815,11 @@ pub fn compile_program(items: &[Item], source: &str) -> (Proto, GlobalTable) {
                 compiler.emit(Instr::abx(Op::LoadStr, t_path, idx));
                 let t_ret = compiler.regs.alloc_temp();
                 compiler.emit(Instr::abc(Op::Call, t_ret, t_fn, 1));
-
-                // If alias, store result under alias name
                 if let Some(alias_name) = alias {
                     compiler.emit_store_global(t_ret, alias_name);
                 }
-                // Also store under sanitized full path
                 let full_key = path.trim_start_matches('@').replace('/', ".").replace('-', "_");
                 compiler.emit_store_global(t_ret, &full_key);
-
                 compiler.regs.free_temp(t_ret);
                 compiler.regs.free_temp(t_path);
                 compiler.regs.free_temp(t_fn);

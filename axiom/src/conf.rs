@@ -4,10 +4,10 @@
 /// Format: property=value (one per line, comments with #)
 ///
 /// CLI:
-///   axiom conf set property=value
-///   axiom conf get property
-///   axiom conf list
-///   axiom conf reset
+///   axm conf set property=value
+///   axm conf get property
+///   axm conf list
+///   axm conf reset
 ///
 /// Properties are grouped by subsystem and documented extensively.
 
@@ -557,151 +557,32 @@ pub struct AxConf {
 }
 
 impl AxConf {
-    // ── Path resolution ──────────────────────────────────────────────────────
-
-    /// Resolve the user's home directory with a full Windows-aware fallback
-    /// chain so the config file is always found regardless of how the shell
-    /// (cmd, PowerShell, MSYS2, Cygwin, Git Bash, WSL) set environment vars.
-    ///
-    /// Priority:
-    ///   1. `dirs::home_dir()`     — uses Windows Known-Folder API (most reliable)
-    ///   2. `%USERPROFILE%`        — standard Windows env var (set by Windows)
-    ///   3. `%HOMEDRIVE%%HOMEPATH%`— legacy Windows path pair
-    ///   4. `%APPDATA%\..\..\.`  — derive home from AppData\Roaming path
-    ///   5. `$HOME`                — Unix / MSYS2 / Cygwin / WSL
-    ///   6. Current directory      — absolute last resort
-    fn resolve_home() -> PathBuf {
-        // 1. dirs crate (FOLDERID_Profile via Windows API on Windows)
-        if let Some(h) = dirs::home_dir() {
-            return h;
-        }
-
-        // 2. %USERPROFILE%  (e.g. C:\Users\ADMIN)
-        if let Ok(v) = std::env::var("USERPROFILE") {
-            if !v.is_empty() {
-                return PathBuf::from(v);
-            }
-        }
-
-        // 3. %HOMEDRIVE% + %HOMEPATH%  (e.g. C: + \Users\ADMIN)
-        if let (Ok(drive), Ok(path)) = (
-            std::env::var("HOMEDRIVE"),
-            std::env::var("HOMEPATH"),
-        ) {
-            if !drive.is_empty() && !path.is_empty() {
-                return PathBuf::from(format!("{}{}", drive, path));
-            }
-        }
-
-        // 4. Derive from %APPDATA%  (C:\Users\ADMIN\AppData\Roaming -> C:\Users\ADMIN)
-        if let Ok(appdata) = std::env::var("APPDATA") {
-            let p = PathBuf::from(&appdata);
-            // AppData\Roaming is two levels below home
-            if let Some(parent) = p.parent().and_then(|pp| pp.parent()) {
-                return parent.to_path_buf();
-            }
-        }
-
-        // 5. $HOME  (Unix, MSYS2, Cygwin, WSL, Git Bash)
-        if let Ok(v) = std::env::var("HOME") {
-            if !v.is_empty() {
-                return PathBuf::from(v);
-            }
-        }
-
-        // 6. Absolute fallback: use current directory so we always get a path
-        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-    }
-
-    /// Returns the canonical path to the config file:
-    ///   Windows  -> C:\Users\<user>\.axiom\conf.txt
-    ///   Unix/Mac -> ~/.axiom/conf.txt
-    ///
-    /// Always returns `Some`; the fallback chain in `resolve_home` guarantees
-    /// we produce a path even if all environment variables are unset.
-    pub fn config_path() -> Option<PathBuf> {
-        Some(Self::resolve_home().join(".axiom").join("conf.txt"))
-    }
-
-    // ── Bootstrap ────────────────────────────────────────────────────────────
-
-    /// Ensure `~/.axiom/conf.txt` exists on disk, creating it with defaults
-    /// if not.  Cheap to call — does a single `path.exists()` stat and returns
-    /// immediately when the file is already present.  Called from `main.rs`
-    /// before any command dispatch so the file is present on first launch
-    /// regardless of which subcommand the user ran.
-    pub fn ensure_initialized() {
-        if let Some(path) = Self::config_path() {
-            if !path.exists() {
-                let mut conf = AxConf { values: HashMap::new() };
-                for prop in ALL_PROPS {
-                    conf.values.insert(prop.name.to_string(), prop.default.to_string());
-                }
-                match conf.save() {
-                    Ok(()) => eprintln!(
-                        "axiom: created default config at {}",
-                        path.display()
-                    ),
-                    Err(e) => eprintln!(
-                        "axiom: warning — could not create config file at {}: {}",
-                        path.display(), e
-                    ),
-                }
-            }
-        }
-    }
-
-    // ── Load / Save ──────────────────────────────────────────────────────────
-
-    /// Load configuration from `~/.axiom/conf.txt`.
-    /// Falls back to compiled-in defaults when a key is absent from the file.
-    /// Creates the file with defaults on first call if it does not yet exist.
+    /// Load configuration from the default config file path.
+    /// Falls back to defaults if file not found.
     pub fn load() -> Self {
         let mut conf = AxConf { values: HashMap::new() };
-        // Seed every known key with its compiled-in default
+        // Set all defaults first
         for prop in ALL_PROPS {
             conf.values.insert(prop.name.to_string(), prop.default.to_string());
         }
 
-        let path = Self::config_path();
-        let file_exists = path.as_ref().map(|p| p.exists()).unwrap_or(false);
-
-        if file_exists {
-            // File exists — overlay its values on top of defaults
-            if let Some(ref p) = path {
-                match std::fs::read_to_string(p) {
-                    Ok(contents) => {
-                        for line in contents.lines() {
-                            let line = line.trim();
-                            if line.starts_with('#') || line.is_empty() { continue; }
-                            if let Some((k, v)) = line.split_once('=') {
-                                conf.values.insert(k.trim().to_string(), v.trim().to_string());
-                            }
-                        }
-                    }
-                    Err(e) => eprintln!(
-                        "axiom: warning — could not read config file {}: {}",
-                        p.display(), e
-                    ),
-                }
-            }
-        } else {
-            // First call with no config file — write defaults to disk so the
-            // file actually exists for the user to inspect and edit.
-            match conf.save() {
-                Ok(()) => {
-                    if let Some(ref p) = path {
-                        eprintln!("axiom: created default config at {}", p.display());
+        // Override with file values
+        if let Some(path) = Self::config_path() {
+            if let Ok(contents) = std::fs::read_to_string(&path) {
+                for line in contents.lines() {
+                    let line = line.trim();
+                    if line.starts_with('#') || line.is_empty() { continue; }
+                    if let Some((k, v)) = line.split_once('=') {
+                        conf.values.insert(k.trim().to_string(), v.trim().to_string());
                     }
                 }
-                Err(e) => eprintln!(
-                    "axiom: warning — could not create config file: {}",
-                    e
-                ),
             }
         }
-
         conf
+    }
+
+    pub fn config_path() -> Option<PathBuf> {
+        dirs::home_dir().map(|h| h.join(".axiom").join("conf.txt"))
     }
 
     pub fn get(&self, key: &str) -> Option<&str> {
@@ -719,58 +600,40 @@ impl AxConf {
     pub fn set(&mut self, key: &str, value: &str) -> Result<(), String> {
         // Validate key exists
         if !ALL_PROPS.iter().any(|p| p.name == key) {
-            return Err(format!("Unknown configuration property: '{}'\nRun `axiom conf list` to see all properties.", key));
+            return Err(format!("Unknown configuration property: '{}'\nRun `axm conf list` to see all properties.", key));
         }
         self.values.insert(key.to_string(), value.to_string());
         self.save()
     }
 
-    /// Write the current configuration to disk.
-    ///
-    /// Creates `~/.axiom/` if it does not yet exist.
-    /// Returns a descriptive error string on any I/O failure so callers can
-    /// surface it to the user instead of silently losing data.
     pub fn save(&self) -> Result<(), String> {
-        let path = Self::config_path()
-            .ok_or_else(|| "Cannot determine config path — HOME/USERPROFILE not set".to_string())?;
-
-        // Create ~/.axiom/ (and any parent dirs) if missing
+        let path = Self::config_path().ok_or("Cannot determine config path")?;
+        // Ensure directory exists
         if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| {
-                format!(
-                    "Cannot create config directory {}: {} (check permissions)",
-                    dir.display(), e
-                )
-            })?;
+            std::fs::create_dir_all(dir).map_err(|e| format!("Cannot create config dir: {}", e))?;
         }
 
-        // Build a human-readable config file grouped by category
         let mut out = String::new();
-        out.push_str(&format!("# Axiom Configuration — {}\n", path.display()));
-        out.push_str("# Edit manually or use: axiom conf set property=value\n");
-        out.push_str("# Reset to defaults:   axiom conf reset\n\n");
+        out.push_str("# Axiom Configuration — ~/.axiom/conf.txt\n");
+        out.push_str("# Edit manually or use: axm conf set property=value\n");
+        out.push_str("# Reset to defaults:   axm conf reset\n\n");
 
         let mut by_category: Vec<(&PropDef, &str)> = ALL_PROPS.iter()
             .map(|p| (p, self.values.get(p.name).map(|s| s.as_str()).unwrap_or(p.default)))
             .collect();
         by_category.sort_by_key(|(p, _)| format!("{:?}", p.category));
 
-        let mut current_cat = None;
+        let mut current_cat: Option<String> = None;
         for (prop, value) in &by_category {
             let cat = format!("{:?}", prop.category);
-            if current_cat.as_deref() != Some(cat.as_str()) {
+            if current_cat.as_ref().map(|s| s.as_str()) != Some(cat.as_str()) {
                 out.push_str(&format!("\n# ── {} ─────────────────────────\n", cat));
                 current_cat = Some(cat);
             }
             out.push_str(&format!("{}={}\n", prop.name, value));
         }
 
-        std::fs::write(&path, &out).map_err(|e| {
-            format!(
-                "Cannot write config file {}: {} (check disk space / permissions)",
-                path.display(), e
-            )
-        })?;
+        std::fs::write(&path, &out).map_err(|e| format!("Cannot write config: {}", e))?;
         Ok(())
     }
 
@@ -792,11 +655,11 @@ impl AxConf {
         let mut by_category: Vec<&PropDef> = ALL_PROPS.iter().collect();
         by_category.sort_by_key(|p| format!("{:?}", p.category));
 
-        let mut current_cat = None;
+        let mut current_cat: Option<String> = None;
 
         for prop in by_category {
             let cat = format!("{}", prop.category);
-            if current_cat.as_deref() != Some(cat.as_str()) {
+            if current_cat.as_ref().map(|s| s.as_str()) != Some(cat.as_str()) {
                 println!();
                 println!("── {} ─────────────────────────────────────────────────────────", cat);
                 current_cat = Some(cat);
@@ -814,7 +677,7 @@ impl AxConf {
     pub fn describe(&self, key: &str) {
         let prop = ALL_PROPS.iter().find(|p| p.name == key);
         match prop {
-            None => println!("Unknown property: '{}'. Run `axiom conf list` to see all.", key),
+            None => println!("Unknown property: '{}'. Run `axm conf list` to see all.", key),
             Some(p) => {
                 let current = self.get(p.name).unwrap_or(p.default);
                 println!("┌─ {} ─────────────────────────────────────────────────────────", p.name);
@@ -927,7 +790,7 @@ fn textwrap(s: &str, width: usize) -> Vec<String> {
 
 pub fn cmd_conf_set(spec: &str) -> Result<(), String> {
     let (k, v) = spec.split_once('=').ok_or_else(||
-        format!("Invalid format. Use: axiom conf set property=value\n  Got: '{}'", spec)
+        format!("Invalid format. Use: axm conf set property=value\n  Got: '{}'", spec)
     )?;
     let k = k.trim();
     let v = v.trim();

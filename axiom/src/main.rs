@@ -1,4 +1,4 @@
-/// Axiom CLI (axiom)
+/// Axiom CLI (axm)
 /// Orchestrates run, pkg, fmt, chk, and conf commands.
 
 use axiom::{Parser, Runtime, SemanticAnalyzer, format_source};
@@ -15,10 +15,10 @@ const STACK_SIZE: usize = 64 * 1024 * 1024;
 
 #[derive(ClapParser)]
 #[command(
-    name = "axiom",
+    name = "axm",
     version = "0.1.0",
     about = "The Axiom Language Toolchain",
-    long_about = "axiom — run, check, format, and manage packages for Axiom (.ax) scripts."
+    long_about = "axm — run, check, format, and manage packages for Axiom (.ax) scripts."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -56,9 +56,9 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum ConfCommands {
-    /// Set a property: axiom conf set property=value
+    /// Set a property: axm conf set property=value
     Set { spec: String },
-    /// Get a property: axiom conf get property
+    /// Get a property: axm conf get property
     Get { key: String },
     /// List all properties with current values
     List,
@@ -70,15 +70,15 @@ enum ConfCommands {
 
 #[derive(Subcommand)]
 enum PkgCommands {
-    /// Install a package: axiom pkg add <user>/<repo>
+    /// Install a package: axm pkg add <user>/<repo>
     Add { name: String },
-    /// Remove a package: axiom pkg remove <user>/<repo>
+    /// Remove a package: axm pkg remove <user>/<repo>
     Remove { name: String },
-    /// Upgrade a package to latest: axiom pkg upgrade <user>/<repo>
+    /// Upgrade a package to latest: axm pkg upgrade <user>/<repo>
     Upgrade { name: String },
     /// List installed packages
     List,
-    /// Show package info: axiom pkg info <user>/<repo>  OR  axiom pkg info .
+    /// Show package info: axm pkg info <user>/<repo>  OR  axm pkg info .
     Info { name: String },
 }
 
@@ -86,12 +86,12 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let result = std::thread::Builder::new()
-        .name("axiom-worker".into())
+        .name("axm-worker".into())
         .stack_size(STACK_SIZE)
         .spawn(move || {
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(cli)))
         })
-        .expect("failed to spawn axiom worker thread")
+        .expect("failed to spawn axm worker thread")
         .join();
 
     match result {
@@ -102,22 +102,18 @@ fn main() -> Result<()> {
             } else if let Some(s) = panic_payload.downcast_ref::<String>() {
                 format!("internal error (panic): {}", s)
             } else {
-                "internal error: unexpected panic in axiom runtime".to_string()
+                "internal error: unexpected panic in axm runtime".to_string()
             };
-            eprintln!("axiom crashed: {}", msg);
+            eprintln!("axm crashed: {}", msg);
             Err(miette::miette!("{}", msg))
         }
     }
 }
 
 fn run(cli: Cli) -> Result<()> {
-    // Ensure ~/.axiom/conf.txt exists before handling any command.
-    // This is a no-op if the file already exists (single stat syscall).
-    axiom::conf::AxConf::ensure_initialized();
-
     match cli.command {
         // ----------------------------------------------------------------
-        // axiom run <file.ax>
+        // axm run <file.ax>
         // ----------------------------------------------------------------
         Commands::Run { path } => {
             let source = std::fs::read_to_string(&path)
@@ -138,7 +134,7 @@ fn run(cli: Cli) -> Result<()> {
         }
 
         // ----------------------------------------------------------------
-        // axiom chk <file.ax>
+        // axm chk <file.ax>
         // ----------------------------------------------------------------
         Commands::Chk { path } => {
             let source = std::fs::read_to_string(&path)
@@ -168,7 +164,7 @@ fn run(cli: Cli) -> Result<()> {
         }
 
         // ----------------------------------------------------------------
-        // axiom fmt <file.ax> [--write]
+        // axm fmt <file.ax> [--write]
         // ----------------------------------------------------------------
         Commands::Fmt { path, write } => {
             let source = std::fs::read_to_string(&path)
@@ -187,7 +183,7 @@ fn run(cli: Cli) -> Result<()> {
         }
 
         // ----------------------------------------------------------------
-        // axiom pkg <add|remove|list>
+        // axm pkg <add|remove|list>
         // ----------------------------------------------------------------
         Commands::Pkg { cmd } => {
             let pm = PackageManager::new()
@@ -231,7 +227,7 @@ fn run(cli: Cli) -> Result<()> {
             }
         }
         // ----------------------------------------------------------------
-        // axiom conf <set|get|list|reset|describe>
+        // axm conf <set|get|list|reset|describe>
         // ----------------------------------------------------------------
         Commands::Conf { cmd } => {
             match cmd {
