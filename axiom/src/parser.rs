@@ -789,6 +789,7 @@ impl Parser {
             }
             Token::True   => { self.advance(); Ok(Expr::Boolean { value: true,  span: start }) }
             Token::False  => { self.advance(); Ok(Expr::Boolean { value: false, span: start }) }
+            Token::Nil    => { self.advance(); Ok(Expr::Identifier { name: "nil".into(), span: start }) }
             Token::SelfKw => { self.advance(); Ok(Expr::SelfRef { span: start }) }
             Token::New    => {
                 self.advance();
@@ -953,6 +954,10 @@ mod tests {
         Parser::new(src, 0).parse().expect("parse failed")
     }
 
+    fn parse_err(src: &str) -> ParserError {
+        Parser::new(src, 0).parse().expect_err("expected parse error")
+    }
+
     #[test]
     fn test_print_keyword_recognized() {
         let src = "print \"hello\";";
@@ -984,5 +989,269 @@ mod tests {
         if let (Some(fs), Some(ld)) = (first_stmt, last_decl) {
             assert!(ld < fs);
         }
+    }
+
+    // ── Regression: Closure & Nested Function Tests ────────────────────────
+
+    #[test]
+    fn test_nested_fn_becomes_let_lambda() {
+        // fn inside a block → Stmt::Let { value: Expr::Lambda }
+        let src = r#"
+            fn outer(x) {
+                fn inner(y) {
+                    ret x + y
+                }
+                ret inner
+            }
+        "#;
+        let items = parse(src);
+        // Should produce one FunctionDecl with body containing a Stmt::Let
+        assert_eq!(items.len(), 1);
+        if let Item::FunctionDecl { body, .. } = &items[0] {
+            assert!(
+                body.iter().any(|s| matches!(s, Stmt::Let { value: Expr::Lambda { .. }, .. })),
+                "nested fn should become Stmt::Let(Lambda)"
+            );
+        } else {
+            panic!("expected FunctionDecl");
+        }
+    }
+
+    #[test]
+    fn test_anonymous_lambda_in_let() {
+        let src = "let f = fn(x) { ret x * 2 }";
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+        if let Item::Statement(Stmt::Let { value: Expr::Lambda { params, .. }, name, .. }) = &items[0] {
+            assert_eq!(name, "f");
+            assert_eq!(params, &["x".to_string()]);
+        } else {
+            panic!("expected Stmt::Let(Lambda)");
+        }
+    }
+
+    #[test]
+    fn test_lambda_returning_lambda() {
+        // fn make_adder(x) { fn adder(y) { ret x + y } ret adder }
+        let src = r#"
+            fn make_adder(x) {
+                fn adder(y) {
+                    ret x + y
+                }
+                ret adder
+            }
+        "#;
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+        if let Item::FunctionDecl { name, body, .. } = &items[0] {
+            assert_eq!(name, "make_adder");
+            // Body should have: Stmt::Let(adder lambda) + Stmt::Return
+            assert!(body.iter().any(|s| matches!(s, Stmt::Let { value: Expr::Lambda { .. }, .. })));
+            assert!(body.iter().any(|s| matches!(s, Stmt::Return { .. })));
+        } else {
+            panic!("expected FunctionDecl");
+        }
+    }
+
+    #[test]
+    fn test_shadowed_variables() {
+        // Outer x, inner x shadow — both should parse without issues
+        let src = r#"
+            fn shadow_test(x) {
+                let x = x + 1
+                ret x
+            }
+        "#;
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_multiple_env_layers() {
+        let src = r#"
+            fn outer(a) {
+                fn middle(b) {
+                    fn inner(c) {
+                        ret a + b + c
+                    }
+                    ret inner
+                }
+                ret middle
+            }
+        "#;
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+        if let Item::FunctionDecl { body, .. } = &items[0] {
+            // Should have one Stmt::Let (the inner lambda for 'middle')
+            let let_stmts: Vec<_> = body.iter()
+                .filter(|s| matches!(s, Stmt::Let { .. }))
+                .collect();
+            assert_eq!(let_stmts.len(), 1, "outer body should have 1 let for middle");
+        }
+    }
+
+    #[test]
+    fn test_return_keyword_in_function() {
+        // Both `ret` and `return` should parse as Stmt::Return
+        let src_ret    = "fn f() { ret 1 }";
+        let src_return = "fn f() { return 1 }";
+        let items_ret    = parse(src_ret);
+        let items_return = parse(src_return);
+        assert_eq!(items_ret.len(), 1);
+        assert_eq!(items_return.len(), 1);
+    }
+
+    #[test]
+    fn test_ret_not_identifier() {
+        // `ret` used as keyword must not parse as identifier
+        let src = "fn f(x) { ret x + 1 }";
+        let items = parse(src);
+        if let Item::FunctionDecl { body, .. } = &items[0] {
+            assert!(body.iter().any(|s| matches!(s, Stmt::Return { .. })));
+        }
+    }
+
+    #[test]
+    fn test_nil_in_expression() {
+        let src = "let x = nil";
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_if_else_chain() {
+        let src = r#"
+            fn grade(n) {
+                if n >= 90 { ret "A" }
+                else if n >= 80 { ret "B" }
+                else { ret "C" }
+            }
+        "#;
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_for_loop() {
+        let src = r#"
+            fn sum_list(lst) {
+                let s = 0
+                for x in lst { s = s + x }
+                ret s
+            }
+        "#;
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_class_declaration() {
+        let src = r#"
+            cls Person {
+                let name = "anon"
+                init(n) {
+                    self.name = n
+                }
+                greet() {
+                    ret "Hello " + self.name
+                }
+            }
+        "#;
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+        assert!(matches!(items[0], Item::ClassDecl { .. }));
+    }
+
+    #[test]
+    fn test_malformed_lambda_missing_rparen() {
+        // Missing ) in lambda param list
+        let src = "let f = fn(x { ret x }";
+        let result = Parser::new(src, 0).parse();
+        assert!(result.is_err(), "malformed lambda should fail to parse");
+    }
+
+    #[test]
+    fn test_hex_literal_in_expression() {
+        let src = "let x = 0xFF";
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+        if let Item::Statement(Stmt::Let { value: Expr::Number { value, .. }, .. }) = &items[0] {
+            assert_eq!(*value, 255.0);
+        }
+    }
+
+    #[test]
+    fn test_interpolated_string() {
+        let src = r#"let msg = "hello @name""#;
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_match_statement() {
+        let src = r#"
+            fn describe(x) {
+                match x {
+                    0 => { ret "zero" }
+                    els => { ret "other" }
+                }
+            }
+        "#;
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_binary_ops_precedence() {
+        // 2 + 3 * 4 should parse as 2 + (3 * 4)
+        let src = "let x = 2 + 3 * 4";
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+        if let Item::Statement(Stmt::Let { value: Expr::BinaryOp { op, right, .. }, .. }) = &items[0] {
+            assert_eq!(op, "+");
+            assert!(matches!(right.as_ref(), Expr::BinaryOp { op, .. } if op == "*"));
+        }
+    }
+
+    #[test]
+    fn test_chained_method_calls() {
+        let src = r#"let r = "hello".upper().len()"#;
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_list_indexing() {
+        let src = "let x = lst[0]";
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
+        assert!(matches!(items[0], Item::Statement(Stmt::Let { value: Expr::Index { .. }, .. })));
+    }
+
+    #[test]
+    fn test_fn_keyword_lambda_expression() {
+        // `fn` as lambda expression (not just in `let = fn(...)`)
+        let src = r#"
+            fn apply(f, x) {
+                ret f(x)
+            }
+            let double = fn(x) { ret x * 2 }
+            let result = apply(double, 5)
+        "#;
+        let items = parse(src);
+        // FunctionDecl for apply + 2 statements
+        assert!(items.len() >= 3);
+    }
+
+    #[test]
+    fn test_recursive_function() {
+        let src = r#"
+            fn fib(n) {
+                if n <= 1 { ret n }
+                ret fib(n - 1) + fib(n - 2)
+            }
+        "#;
+        let items = parse(src);
+        assert_eq!(items.len(), 1);
     }
 }

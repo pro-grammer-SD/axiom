@@ -130,7 +130,10 @@ fn run(cli: Cli) -> Result<()> {
             let mut runtime = Runtime::new();
             runtime.run(items)
                 .map_err(|e| {
-                    eprintln!("Runtime error: {}", e);
+                    use axiom::diagnostics::DiagnosticEngine;
+                    let engine = DiagnosticEngine::new(path.display().to_string(), &source);
+                    let diag = engine.from_runtime(&e);
+                    engine.emit(&diag);
                     miette::miette!("{}", e)
                 })?;
 

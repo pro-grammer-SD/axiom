@@ -15,6 +15,8 @@ pub enum AxCallable {
     UserDefined {
         params: Vec<String>,
         body: Vec<Stmt>,
+        /// Captured lexical environment (closure variables)
+        captured: HashMap<String, crate::core::value::AxValue>,
     },
     Native {
         name: String,

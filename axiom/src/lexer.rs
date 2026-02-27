@@ -82,6 +82,9 @@ pub enum Token {
     Dot,
     Arrow,
 
+    /// Nil literal keyword
+    Nil,
+
     // End of input
     Eof,
     /// AXM_101: Returned when lexer encounters an unrecognized character.
@@ -170,6 +173,22 @@ impl Lexer {
     }
 
     fn read_number(&mut self) -> f64 {
+        // Check for hex literal: 0x...
+        if self.current() == Some('0') && (self.peek(1) == Some('x') || self.peek(1) == Some('X')) {
+            self.advance(); // consume '0'
+            self.advance(); // consume 'x'/'X'
+            let hex_start = self.pos;
+            while let Some(c) = self.current() {
+                if c.is_ascii_hexdigit() {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+            let hex_str: String = self.input[hex_start..self.pos].iter().collect();
+            return u64::from_str_radix(&hex_str, 16).unwrap_or(0) as f64;
+        }
+
         let start = self.pos;
 
         while let Some(ch) = self.current() {
@@ -315,7 +334,7 @@ impl Lexer {
                         "in" => Token::In,
                         "fun" => Token::Fun,
                         "fn" => Token::Fn,
-                        "ret" => Token::Return,
+                        "ret" | "return" => Token::Return,
                         "let" => Token::Let,
                         "go" => Token::Go,
                         "async" => Token::Async,
@@ -334,6 +353,7 @@ impl Lexer {
                         "load" => Token::Load,
                         "true" => Token::True,
                         "false" => Token::False,
+                        "nil" => Token::Nil,
                         _ => Token::Ident(ident),
                     }
                 } else {
@@ -587,5 +607,35 @@ mod tests {
             }
             _ => panic!("Expected interpolated string token"),
         }
+    }
+
+    #[test]
+    fn test_return_keyword() {
+        // Both `ret` and `return` should produce Token::Return
+        let mut lexer = Lexer::new("ret", 0);
+        let (t, _) = lexer.next_token();
+        assert_eq!(t, Token::Return);
+
+        let mut lexer = Lexer::new("return", 0);
+        let (t, _) = lexer.next_token();
+        assert_eq!(t, Token::Return);
+    }
+
+    #[test]
+    fn test_nil_keyword() {
+        let mut lexer = Lexer::new("nil", 0);
+        let (t, _) = lexer.next_token();
+        assert_eq!(t, Token::Nil);
+    }
+
+    #[test]
+    fn test_hex_literal() {
+        let mut lexer = Lexer::new("0xFF", 0);
+        let (t, _) = lexer.next_token();
+        assert!(matches!(t, Token::Number(n) if n == 255.0));
+
+        let mut lexer = Lexer::new("0xDEAD", 0);
+        let (t, _) = lexer.next_token();
+        assert!(matches!(t, Token::Number(n) if n == 57005.0));
     }
 }

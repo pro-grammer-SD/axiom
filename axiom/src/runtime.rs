@@ -38,7 +38,10 @@ impl Env {
 pub struct Runtime {
     pub globals: HashMap<String, AxValue>,
     pub classes: HashMap<String, Arc<AxClass>>,
+    call_depth: std::cell::Cell<usize>,
 }
+
+const MAX_CALL_DEPTH: usize = 1000;
 
 impl Runtime {
     pub fn new() -> Self {
@@ -104,7 +107,9 @@ impl Runtime {
             },
         })));
         intrinsics::register(&mut globals);
-        Runtime { globals, classes: HashMap::new() }
+        // Register nil as a global constant
+        globals.insert("nil".to_string(), AxValue::Nil);
+        Runtime { globals, classes: HashMap::new(), call_depth: std::cell::Cell::new(0) }
     }
 
     pub fn run(&mut self, items: Vec<Item>) -> Result<(), RuntimeError> {
@@ -220,7 +225,7 @@ impl Runtime {
         for item in &loaded_items {
             self.register_decl(item);
             if let Item::FunctionDecl { name, params, body, .. } = item {
-                module_map.insert(name.clone(), AxValue::Fun(Arc::new(AxCallable::UserDefined { params: params.clone(), body: body.clone() })));
+                module_map.insert(name.clone(), AxValue::Fun(Arc::new(AxCallable::UserDefined { params: params.clone(), body: body.clone(), captured: std::collections::HashMap::new() })));
             }
         }
         for item in &loaded_items {
@@ -243,14 +248,14 @@ impl Runtime {
     fn register_decl(&mut self, item: &Item) {
         match item {
             Item::FunctionDecl { name, params, body, .. } => {
-                self.globals.insert(name.clone(), AxValue::Fun(Arc::new(AxCallable::UserDefined { params: params.clone(), body: body.clone() })));
+                self.globals.insert(name.clone(), AxValue::Fun(Arc::new(AxCallable::UserDefined { params: params.clone(), body: body.clone(), captured: std::collections::HashMap::new() })));
             }
             Item::ClassDecl { name, body, .. } => {
                 let mut ax_class = AxClass::new(name.clone());
                 for member in body {
                     match member {
                         ClassMember::Method { name: mn, params, body, .. } => {
-                            ax_class.methods.insert(mn.clone(), AxCallable::UserDefined { params: params.clone(), body: body.clone() });
+                            ax_class.methods.insert(mn.clone(), AxCallable::UserDefined { params: params.clone(), body: body.clone(), captured: std::collections::HashMap::new() });
                         }
                         ClassMember::Field { name: fn_, default, .. } => { ax_class.fields.push((fn_.clone(), default.clone())); }
                     }
@@ -316,7 +321,7 @@ impl Runtime {
             }
             Stmt::GoSpawn { body, .. } => {
                 let g = self.globals.clone(); let c = self.classes.clone(); let body = body.clone();
-                tokio::spawn(async move { let rt = Runtime { globals: g, classes: c }; let mut env = Env::new(); let _ = rt.exec_block_in_env(&body, &mut env); });
+                tokio::spawn(async move { let rt = Runtime { globals: g, classes: c, call_depth: std::cell::Cell::new(0) }; let mut env = Env::new(); let _ = rt.exec_block_in_env(&body, &mut env); });
             }
         }
         Ok(None)
@@ -414,6 +419,49 @@ impl Runtime {
             Expr::MethodCall { object, method, arguments, .. } => {
                 let obj = self.eval(object, env)?;
                 let mut args = Vec::with_capacity(arguments.len()); for arg in arguments { args.push(self.eval(arg, env)?); }
+
+                // ── Higher-order stdlib intercept ────────────────────────────
+                // Native intrinsics cannot call user-defined functions because they lack
+                // runtime context.  Intercept known higher-order patterns here so that
+                // lambdas/closures passed to alg.map / alg.filter work correctly.
+                if matches!(&obj, AxValue::Map(_)) {
+                    match method.as_str() {
+                        "map" => {
+                            if let (Some(list_val), Some(fn_val)) = (args.first(), args.get(1)) {
+                                if let (AxValue::Lst(list), AxValue::Fun(callable)) = (list_val, fn_val) {
+                                    if matches!(callable.as_ref(), AxCallable::UserDefined { .. }) {
+                                        let items = list.read().unwrap().clone();
+                                        let func  = fn_val.clone();
+                                        let mut results = Vec::with_capacity(items.len());
+                                        for item in items {
+                                            results.push(self.call_value(func.clone(), vec![item], env)?);
+                                        }
+                                        return Ok(AxValue::Lst(Arc::new(RwLock::new(results))));
+                                    }
+                                }
+                            }
+                        }
+                        "filter" => {
+                            if let (Some(list_val), Some(fn_val)) = (args.first(), args.get(1)) {
+                                if let (AxValue::Lst(list), AxValue::Fun(callable)) = (list_val, fn_val) {
+                                    if matches!(callable.as_ref(), AxCallable::UserDefined { .. }) {
+                                        let items = list.read().unwrap().clone();
+                                        let func  = fn_val.clone();
+                                        let mut results = Vec::new();
+                                        for item in items {
+                                            let keep = self.call_value(func.clone(), vec![item.clone()], env)?;
+                                            if keep.is_truthy() { results.push(item); }
+                                        }
+                                        return Ok(AxValue::Lst(Arc::new(RwLock::new(results))));
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                // ── End higher-order intercept ───────────────────────────────
+
                 self.call_method(obj, method, args, env)
             }
             Expr::MemberAccess { object, member, .. } => {
@@ -451,8 +499,10 @@ impl Runtime {
                 let inst = Arc::new(RwLock::new(AxInstance { class: Arc::clone(&class), fields }));
                 let mut args = Vec::with_capacity(arguments.len()); for arg in arguments { args.push(self.eval(arg, env)?); }
                 let iv = AxValue::Instance(Arc::clone(&inst));
-                if let Some(AxCallable::UserDefined { params, body }) = class.methods.get("init").cloned() {
-                    env.push_frame(); env.define("self".into(), iv.clone());
+                if let Some(AxCallable::UserDefined { params, body, captured }) = class.methods.get("init").cloned() {
+                    env.push_frame();
+                    for (k, v) in &captured { env.define(k.clone(), v.clone()); }
+                    env.define("self".into(), iv.clone());
                     for (p, a) in params.iter().zip(args.iter()) { env.define(p.clone(), a.clone()); }
                     self.exec_block_in_env(&body, env)?; env.pop_frame();
                 }
@@ -470,10 +520,18 @@ impl Runtime {
             // Lambda expression: fn(params) { body } — creates a callable value.
             // This is used directly for anonymous lambdas AND for named nested
             // functions that the parser rewrites as: let name = fn(params) { body }
+            // We capture the current environment as a closure snapshot.
             Expr::Lambda { params, body, .. } => {
+                let mut captured = std::collections::HashMap::new();
+                for frame in &env.frames {
+                    for (k, v) in frame {
+                        captured.insert(k.clone(), v.clone());
+                    }
+                }
                 Ok(AxValue::Fun(Arc::new(AxCallable::UserDefined {
                     params: params.clone(),
                     body: body.clone(),
+                    captured,
                 })))
             }
             _ => Ok(AxValue::Nil),
@@ -487,27 +545,71 @@ impl Runtime {
     }
 
     pub fn call_value(&self, func: AxValue, args: Vec<AxValue>, env: &mut Env) -> Result<AxValue, RuntimeError> {
+        let depth = self.call_depth.get();
+        if depth >= MAX_CALL_DEPTH {
+            return Err(RuntimeError::GenericError {
+                message: "[AXM_408] Call stack overflow — frame limit reached. Check for infinite recursion.".to_string(),
+                span: Default::default(),
+            });
+        }
+        self.call_depth.set(depth + 1);
+        let result = self.call_value_inner(func, args, env);
+        self.call_depth.set(depth);
+        result
+    }
+
+    fn call_value_inner(&self, func: AxValue, args: Vec<AxValue>, env: &mut Env) -> Result<AxValue, RuntimeError> {
         match func {
             AxValue::Fun(callable) => match &*callable {
                 AxCallable::Native { func, .. } => Ok(func(args)),
-                AxCallable::UserDefined { params, body } => {
+                AxCallable::UserDefined { params, body, captured } => {
+                    if args.len() != params.len() {
+                        return Err(RuntimeError::ArityMismatch {
+                            expected: params.len(),
+                            found: args.len(),
+                        });
+                    }
                     env.push_frame();
+                    // Inject captured closure variables first (so params can override them)
+                    for (k, v) in captured {
+                        env.define(k.clone(), v.clone());
+                    }
                     for (p, a) in params.iter().zip(args.iter()) { env.define(p.clone(), a.clone()); }
                     let ret = self.exec_block_in_env(body, env)?; env.pop_frame();
                     Ok(ret.unwrap_or(AxValue::Nil))
                 }
             }
+            AxValue::Nil => Err(RuntimeError::NilCall {
+                hint: "Value is nil — check that the variable is assigned before use (AXM_402)".into(),
+                span: Default::default(),
+            }),
             _ => Err(RuntimeError::GenericError { message: format!("Not callable: {}", func.type_name()), span: Default::default() }),
         }
     }
 
     fn call_method(&self, obj: AxValue, method: &str, args: Vec<AxValue>, env: &mut Env) -> Result<AxValue, RuntimeError> {
+        let depth = self.call_depth.get();
+        if depth >= MAX_CALL_DEPTH {
+            return Err(RuntimeError::GenericError {
+                message: "[AXM_408] Call stack overflow — frame limit reached.".to_string(),
+                span: Default::default(),
+            });
+        }
+        self.call_depth.set(depth + 1);
+        let result = self.call_method_inner(obj, method, args, env);
+        self.call_depth.set(depth);
+        result
+    }
+
+    fn call_method_inner(&self, obj: AxValue, method: &str, args: Vec<AxValue>, env: &mut Env) -> Result<AxValue, RuntimeError> {
         match &obj {
             AxValue::Instance(inst) => {
                 let callable = { inst.read().unwrap().class.methods.get(method).cloned() };
                 match callable {
-                    Some(AxCallable::UserDefined { params, body }) => {
-                        env.push_frame(); env.define("self".into(), obj.clone());
+                    Some(AxCallable::UserDefined { params, body, captured }) => {
+                        env.push_frame();
+                        for (k, v) in &captured { env.define(k.clone(), v.clone()); }
+                        env.define("self".into(), obj.clone());
                         for (p, a) in params.iter().zip(args.iter()) { env.define(p.clone(), a.clone()); }
                         let ret = self.exec_block_in_env(&body, env)?; env.pop_frame();
                         Ok(ret.unwrap_or(AxValue::Nil))

@@ -1,138 +1,241 @@
-# Axiom Omega v4 - Parser Fixes Applied
+# Axiom Interpreter — Refactoring Changelog
 
-## Summary
-Fixed critical parser issues with nested function declarations and improved error reporting with miette diagnostics and levenshtein suggestions.
+## Production Refactoring — Complete Audit
 
-## Changes Made
+### 1. Keyword Migration (`lexer.rs`)
 
-### 1. **Parser Fix: Nested Function Declarations** (`axiom/src/parser.rs`)
-
-#### Problem
-Nested functions like `fn adder(y) { ... }` declared inside other functions were not being parsed correctly. The parser would attempt to parse them as anonymous lambdas and expect an LParen immediately after the `fn` keyword, causing:
-```
-Error: Expected LParen, found Ident("make_adder")
-Error: Expected LParen, found Ident("adder")
-```
-
-#### Solution
-Updated `parse_stmt()` function (lines 290-340) to properly distinguish between:
-- **Named nested functions**: `fn name(params) { body }` → routed to `parse_nested_fn_as_let()`
-- **Anonymous lambdas**: `fn(params) { body }` → parsed as expressions
-- **Other unexpected syntax**: gracefully delegated to expression parser for error handling
-
-**Key Change**: Added lookahead logic using `peek_nth(1)` to check if the second token is an identifier or LParen:
-- If identifier: treat as named function declaration
-- If LParen: treat as anonymous lambda expression
-- Otherwise: let expression parser handle the error
-
-#### Impact
-- ✅ `examples/core/lambdas.ax` now parses correctly
-- ✅ `examples/stdlib/stdlib_demo.ax` now parses correctly
-- ✅ Multi-level nested functions (functions within functions) now work
-- ✅ Closures can properly capture lexical scope
-
-### 2. **Enhanced Error Reporting** (`axiom/src/diagnostics.rs`)
-
-#### Problem
-Parser errors were being reported without proper source location context or helpful suggestions, making debugging difficult.
-
-#### Solution
-Added `from_parser()` method to `DiagnosticEngine` that:
-- Converts `ParserError` to `AxiomDiagnostic` with full source context
-- Provides exact byte span information for error highlighting
-- Uses miette rendering for rustc-style error messages
-- Supports levenshtein-based spell-check for future enhancements
-
-**New Method** (lines 417-445):
+**Both `ret` and `return` recognized as `Token::Return`**
 ```rust
-pub fn from_parser(&self, err: &crate::errors::ParserError) -> AxiomDiagnostic
+"ret" | "return" => Token::Return,
+```
+- `ret` is the canonical Axiom keyword
+- `return` accepted as an alias for compatibility with legacy scripts
+- Neither `ret` nor `return` can be used as identifiers — they emit `Token::Return`
+- Prevents `[AXM_201] Undefined variable: 'return'` errors
+- Added regression tests: `test_return_keyword()`, `test_nil_keyword()`, `test_hex_literal()`
+
+**`nil` keyword recognized**
+```rust
+"nil" => Token::Nil,
 ```
 
-### 3. **Improved Main Error Handling** (`axiom/src/main.rs`)
-
-#### Problem
-Parser errors were simply wrapped as strings without diagnostic context.
-
-#### Solution
-Updated both `Commands::Run` and `Commands::Chk` handlers to:
-- Create a `DiagnosticEngine` with source file context
-- Convert parser errors using the new `from_parser()` method
-- Output rustc-style diagnostics with source highlighting
-- Point exactly to the error location with byte spans
-
-**Updated Sections**:
-- Lines 118-134: `Commands::Run` error handling
-- Lines 139-152: `Commands::Chk` error handling
-
-#### Output Example
-Before:
+**Hex literals parsed correctly**
 ```
-Parse error: Expected LParen, found Ident("make_adder")
+0xDEAD → 57005.0
+0xFF   → 255.0
 ```
 
-After (with miette):
+---
+
+### 2. Closure & Scope Resolution (`runtime.rs`, `core/oop.rs`)
+
+**`AxCallable::UserDefined` now carries a `captured` environment**
+```rust
+UserDefined {
+    params: Vec<String>,
+    body: Vec<Stmt>,
+    captured: HashMap<String, AxValue>,   // ← new field
+}
 ```
-error[AXM_101]: Unexpected token found
- ┌─ examples/core/lambdas.ax:22:5
- │
-21 │     fn make_adder(x) {
-22 │     ^^ Unexpected token 'Ident("make_adder")'. Expected: LParen
-   │
+
+**`Expr::Lambda` evaluation snapshots the entire env stack**
+```rust
+Expr::Lambda { params, body, .. } => {
+    let mut captured = HashMap::new();
+    for frame in &env.frames {
+        for (k, v) in frame {
+            captured.insert(k.clone(), v.clone());
+        }
+    }
+    Ok(AxValue::Fun(Arc::new(AxCallable::UserDefined { params, body, captured })))
+}
 ```
 
-## Files Modified
+**`call_value_inner` injects captured vars before params (params shadow captured)**
+```rust
+AxCallable::UserDefined { params, body, captured } => {
+    env.push_frame();
+    for (k, v) in captured { env.define(k.clone(), v.clone()); }
+    for (p, a) in params.iter().zip(args.iter()) { env.define(p.clone(), a.clone()); }
+    let ret = self.exec_block_in_env(body, env)?;
+    env.pop_frame();
+    Ok(ret.unwrap_or(AxValue::Nil))
+}
+```
 
-1. **axiom/src/parser.rs** (lines 290-340)
-   - Fixed `parse_stmt()` function to handle nested functions
+**Variable resolution order: Local → Enclosing (captured) → Global**
+- `env.get(name)` traverses frames in reverse order
+- `self.globals.get(name)` as final fallback
 
-2. **axiom/src/diagnostics.rs** (lines 417-445)
-   - Added `DiagnosticEngine::from_parser()` method
+---
 
-3. **axiom/src/main.rs** (lines 118-152)
-   - Enhanced `Commands::Run` error handling
-   - Enhanced `Commands::Chk` error handling
+### 3. Parser: Nested `fn` → `let` Rewrite (`parser.rs`)
 
-## Files Not Modified (But Compatible)
+**Nested function declarations inside blocks rewritten as `Stmt::Let(Lambda)`**
+```axiom
+fn make_adder(x) {
+    fn adder(y) {   // ← becomes: let adder = fn(y) { ... }
+        ret x + y
+    }
+    ret adder
+}
+```
 
-- **axiom/src/parser.lalrpop**: LALRPOP grammar (not actively used, but kept in sync)
-- **axiom/src/errors.rs**: Parser error types (no changes needed)
-- All other source files remain unchanged
+This enables proper closure capture — `adder` is a lambda that snapshots `x` from the
+enclosing `make_adder` scope at definition time.
 
-## Testing
+Key method: `parse_nested_fn_as_let()` — converts `fn name(params) { body }` inside any
+block into `Stmt::Let { name, value: Expr::Lambda { params, body } }`.
 
-### Example Files Fixed
-Both example files now parse without errors:
+---
 
-1. **examples/core/lambdas.ax**
-   - ✅ Nested function `make_adder` inside `demo_closures`
-   - ✅ Nested function `adder` inside `make_adder`
-   - ✅ Anonymous lambdas in `demo_higher_order`
+### 4. Higher-Order Function Intercept (`runtime.rs`)
 
-2. **examples/stdlib/stdlib_demo.ax**
-   - ✅ Closure scope test with nested `make_adder` and `adder`
-   - ✅ All subsequent stdlib tests
+**`alg.map` and `alg.filter` now work with user-defined functions**
 
-## Levenshtein Integration
+Native stdlib functions cannot call user-defined lambdas (they lack runtime context).
+The runtime intercepts calls to these higher-order methods and executes user-defined
+functions directly with proper scope:
 
-The codebase already includes comprehensive levenshtein-based spell-checking via:
-- `diagnostics.rs`: `levenshtein()` function (line 175)
-- `diagnostics.rs`: `closest_match()` function (lines 200-207)
-- Used for undefined identifier suggestions in `undefined_identifier()` (lines 416+)
+```rust
+if matches!(&obj, AxValue::Map(_)) {
+    match method.as_str() {
+        "map" => {
+            // If fn arg is UserDefined, iterate with self.call_value(...)
+        }
+        "filter" => {
+            // If fn arg is UserDefined, filter with self.call_value(...)
+        }
+    }
+}
+```
 
-Parser errors now have full integration with this system through the enhanced `from_parser()` method.
+---
 
-## Backward Compatibility
+### 5. Standard Library Fixes (`intrinsics.rs`)
 
-✅ **Fully backward compatible**
-- No breaking changes to public APIs
-- Existing valid code continues to work
-- Only fixes error cases that were previously broken
-- Error output is enhanced but parseable
+**Added missing `col.new_map` and `col.new_set` aliases**
+```rust
+col_map.insert("new_map".to_string(), native("col.new_map", col_new));  // alias
+col_map.insert("new_set".to_string(), native("col.new_set", col_new));  // alias
+```
 
-## Future Enhancements
+Fixes `lambdas.ax`'s `col.new_map()` call.
 
-Could further improve by:
-1. Adding specific keywords/identifiers to Levenshtein suggestions for "Expected" errors
-2. Providing "Did you mean 'fun' instead of 'fn'?" suggestions
-3. Context-aware hints based on position in file
-4. Integration with Language Server Protocol (LSP)
+---
+
+### 6. Diagnostic System (`diagnostics.rs`)
+
+**Fixed double-bracket bug in `render_rustc_style`**
+
+Before (broken):
+```
+error[[AXM_101]]: message   ← double brackets!
+```
+
+After (correct):
+```
+error[AXM_101]: message
+```
+
+Fix:
+```rust
+writeln!(out, "\x1b[1;31merror\x1b[0m\x1b[1m[AXM_{:03}]\x1b[0m: {}", code.as_u32(), message)
+```
+
+**Miette-powered runtime error output in `main.rs`**
+
+Runtime errors now render through `DiagnosticEngine` → `AxiomDiagnostic` → miette
+graphical renderer, producing output like:
+```
+  × [AXM_201] Undefined variable
+   ╭─[script.ax:5:9]
+ 5 │     print(x)
+   ·           ^
+   ╰─
+  help: Declare the variable with `let name = value` before referencing it.
+```
+
+---
+
+### 7. Stack Overflow Detection (`runtime.rs`)
+
+```rust
+const MAX_CALL_DEPTH: usize = 1000;
+
+pub fn call_value(&self, func: AxValue, args: Vec<AxValue>, env: &mut Env) -> Result<...> {
+    let depth = self.call_depth.get();
+    if depth >= MAX_CALL_DEPTH {
+        return Err(RuntimeError::GenericError {
+            message: "[AXM_408] Call stack overflow — frame limit reached.".into(),
+            span: Default::default(),
+        });
+    }
+    self.call_depth.set(depth + 1);
+    let result = self.call_value_inner(func, args, env);
+    self.call_depth.set(depth);
+    result
+}
+```
+
+---
+
+### 8. Arity Checking (`runtime.rs`)
+
+```rust
+if args.len() != params.len() {
+    return Err(RuntimeError::ArityMismatch {
+        expected: params.len(),
+        found: args.len(),
+    });
+}
+```
+
+---
+
+### 9. Regression Tests
+
+**`src/parser.rs`** — 20 new tests covering:
+- Nested fn → let/lambda rewrite
+- Anonymous lambda in let
+- Lambda returning lambda  
+- Shadowed variables
+- Multiple environment layers
+- `ret` / `return` equivalence
+- `nil` in expressions
+- Hex literals
+- Malformed lambda detection
+- Class declarations, match, for loops
+- Binary op precedence
+- Chained method calls
+
+**`tests/integration_closures.rs`** — 12 integration tests covering:
+- Closure capture of outer variables
+- Multiple independent closures
+- Lambda returning lambda (currying)
+- Three-level closure chains
+- `ret` / `return` keyword parity
+- Nil call error
+- Arity mismatch error
+- Fibonacci correctness
+- `alg.range` + `alg.sum`
+- `alg.map` with user-defined lambda
+- String methods
+- Stack overflow detection
+
+---
+
+### Files Changed
+
+| File | Changes |
+|------|---------|
+| `src/lexer.rs` | `"ret"\|"return"` → `Token::Return`; `"nil"` keyword; hex literals |
+| `src/parser.rs` | Nested fn → let/lambda; 20 new regression tests |
+| `src/runtime.rs` | Closure capture; higher-order intercept; arity check; stack depth |
+| `src/core/oop.rs` | `AxCallable::UserDefined.captured` field |
+| `src/intrinsics.rs` | `col.new_map`, `col.new_set` aliases |
+| `src/diagnostics.rs` | Fix double-bracket header; update test |
+| `src/main.rs` | Miette-rendered runtime errors |
+| `tests/integration_closures.rs` | New integration test suite |
+| `examples/tests/test_closures.ax` | Closure regression script |
+| `examples/tests/test_stdlib.ax` | Stdlib smoke test script |

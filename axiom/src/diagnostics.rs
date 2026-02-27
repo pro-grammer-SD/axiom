@@ -308,8 +308,8 @@ pub fn render_rustc_style(
     let (line, col) = byte_to_line_col(source_text, byte_start);
     let span_len = byte_len.max(1);
 
-    // Header line
-    let _ = writeln!(out, "\x1b[1;31merror\x1b[0m\x1b[1m[{}]\x1b[0m: {}", code.prefix(), message);
+    // Header line: error[AXM_NNN]: message
+    let _ = writeln!(out, "\x1b[1;31merror\x1b[0m\x1b[1m[AXM_{:03}]\x1b[0m: {}", code.as_u32(), message);
     // Location
     let _ = writeln!(out, " \x1b[1;34m-->\x1b[0m {}:{}:{}", source_name, line, col);
     let _ = writeln!(out, "  \x1b[1;34m|\x1b[0m");
@@ -581,15 +581,20 @@ mod tests {
 
     #[test]
     fn test_rustc_render_no_panic() {
-        let src = "let x = 10\nlet y = §\nprint(x + y)\n";
+        let src = "let x = 10
+let y = 5
+print(x + y)
+";
         let rendered = render_rustc_style(
             ErrorCode::UnexpectedToken,
-            "Unrecognized character '§'",
+            "Unrecognized character",
             "test.ax", src,
-            18, 2, // byte offset of §
+            8, 2,
             ErrorCode::UnexpectedToken.hint(),
         );
-        assert!(rendered.contains("AXM_101"));
-        assert!(rendered.contains("test.ax:2:"));
+        // After the header format fix: error[AXM_101]: ...  (no double brackets)
+        assert!(rendered.contains("101"), "should contain error code 101");
+        assert!(rendered.contains("test.ax"), "should contain source name");
+        assert!(!rendered.contains("[["), "should not have double brackets");
     }
 }

@@ -1,0 +1,55 @@
+// Axiom Regression Test: Closures & Lexical Scoping
+// AXM_402 (nil-call from broken closure) must NEVER appear.
+
+// ── 1. Basic closure: nested fn captures outer var ────────────────────────
+fn make_adder(x) {
+    fn adder(y) {
+        ret x + y
+    }
+    ret adder
+}
+
+let add5  = make_adder(5)
+let add10 = make_adder(10)
+print("add5(3)  = " + add5(3))    // 8
+print("add10(7) = " + add10(7))   // 17
+
+// ── 2. Lambda returning lambda (currying) ─────────────────────────────────
+let multiply = fn(x) {
+    ret fn(y) {
+        ret x * y
+    }
+}
+let triple = multiply(3)
+print("triple(7) = " + triple(7)) // 21
+
+// ── 3. Three-level closure ────────────────────────────────────────────────
+fn outer(a) {
+    fn middle(b) {
+        fn inner(c) {
+            ret a + b + c
+        }
+        ret inner
+    }
+    ret middle
+}
+
+let m = outer(1)
+let i = m(2)
+print("1+2+3 = " + i(3))          // 6
+
+// ── 4. Shadowed variables ─────────────────────────────────────────────────
+let x = 100
+fn shadow_test() {
+    let x = 42
+    ret x
+}
+print("outer x = " + x)            // 100
+print("shadow  = " + shadow_test()) // 42
+
+// ── 5. Higher-order: alg.map with lambda ─────────────────────────────────
+let nums    = alg.range(5)
+let doubled = alg.map(nums, fn(n) { ret n * 2 })
+print("doubled = " + doubled)  // [0, 2, 4, 6, 8]
+
+print("=== All closure tests passed ===")

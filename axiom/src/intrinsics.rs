@@ -1968,6 +1968,8 @@ pub fn register(globals: &mut HashMap<String, AxValue>) {
     // =============== MODULE 5: COL ===============
     let col_map = Arc::new(DashMap::new());
     col_map.insert("new".to_string(), native("col.new", col_new));
+    col_map.insert("new_map".to_string(), native("col.new_map", col_new));   // alias
+    col_map.insert("new_set".to_string(), native("col.new_set", col_new));   // alias
     col_map.insert("get".to_string(), native("col.get", col_get));
     col_map.insert("set".to_string(), native("col.set", col_set));
     col_map.insert("remove".to_string(), native("col.remove", col_remove));

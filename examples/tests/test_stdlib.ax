@@ -1,0 +1,40 @@
+// Axiom Regression Test: Standard Library Smoke Tests
+
+// ── alg module ────────────────────────────────────────────────────────────
+let nums = alg.range(5)
+print("alg.range(5) = " + nums)         // [0, 1, 2, 3, 4]
+print("alg.sum      = " + alg.sum(nums)) // 10
+print("alg.len      = " + alg.len(nums)) // 5
+
+let sorted = alg.sort([3, 1, 4, 1, 5, 9, 2, 6])
+print("alg.sort     = " + sorted)
+
+// ── str module ────────────────────────────────────────────────────────────
+print("str.upper    = " + str.upper("hello axiom"))
+print("str.lower    = " + str.lower("HELLO AXIOM"))
+print("str.len      = " + str.len("axiom"))
+
+// ── mth module ────────────────────────────────────────────────────────────
+print("mth.sqrt(16) = " + mth.sqrt(16))
+print("mth.abs(-5)  = " + mth.abs(-5))
+print("mth.pow(2,8) = " + mth.pow(2, 8))
+
+// ── col module ────────────────────────────────────────────────────────────
+let m = col.new_map()
+print("col.new_map  = ok (" + m + ")")
+
+let m2 = col.new()
+print("col.new      = ok (" + m2 + ")")
+
+// ── ioo module ────────────────────────────────────────────────────────────
+print("ioo.exists   = " + ioo.exists("/tmp"))
+
+// ── env module ────────────────────────────────────────────────────────────
+let all_env = env.all()
+print("env.all type = " + type(all_env))
+
+// ── tim module ────────────────────────────────────────────────────────────
+let now = tim.now()
+print("tim.now      = " + now)
+
+print("=== All stdlib smoke tests passed ===")
