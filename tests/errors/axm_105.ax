@@ -1,0 +1,8 @@
+// AXM_105 — Unexpected end of file
+// The function body is never closed — EOF inside a block.
+// Expected diagnostic: [AXM_105] Unexpected end of file inside block
+
+fn incomplete(x) {
+    let result = x * 2
+    if result > 10 {
+        // forgot to close the blocks

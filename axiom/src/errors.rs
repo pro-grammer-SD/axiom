@@ -189,6 +189,10 @@ pub enum RuntimeError {
     IndexOutOfBounds { index: i64, length: usize },
     DivisionByZero { span: Span },
     ImportError { module: String, message: String },
+    /// AXM_402: Attempt to call a nil value (missing parent-scope identifier binding)
+    NilCall { hint: String, span: Span },
+    /// AXM_401: Attempt to call a non-function value
+    NotCallable { type_name: String, span: Span },
     GenericError { message: String, span: Span },
 }
 
@@ -196,31 +200,37 @@ impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RuntimeError::UndefinedVariable { name, .. } => {
-                write!(f, "Undefined variable: '{}'", name)
+                write!(f, "[AXM_201] Undefined variable: '{}'", name)
             }
             RuntimeError::UndefinedFunction { name, .. } => {
-                write!(f, "Undefined function: '{}'", name)
+                write!(f, "[AXM_201] Undefined function: '{}'", name)
             }
             RuntimeError::UndefinedClass { name } => {
-                write!(f, "Undefined class: '{}'", name)
+                write!(f, "[AXM_201] Undefined class: '{}'", name)
             }
             RuntimeError::UndefinedMethod { class_name, method_name } => {
-                write!(f, "Undefined method '{}' on '{}'", method_name, class_name)
+                write!(f, "[AXM_201] Undefined method '{}' on '{}'", method_name, class_name)
             }
             RuntimeError::TypeMismatch { expected, found, .. } => {
-                write!(f, "Type mismatch: expected {}, found {}", expected, found)
+                write!(f, "[AXM_203] Type mismatch: expected {}, found {}", expected, found)
             }
             RuntimeError::ArityMismatch { expected, found } => {
-                write!(f, "Expected {} arguments, got {}", expected, found)
+                write!(f, "[AXM_202] Expected {} arguments, got {}", expected, found)
             }
             RuntimeError::IndexOutOfBounds { index, length } => {
-                write!(f, "Index {} out of bounds for length {}", index, length)
+                write!(f, "[AXM_404] Index {} out of bounds for length {}", index, length)
             }
             RuntimeError::DivisionByZero { .. } => {
-                write!(f, "Division by zero")
+                write!(f, "[AXM_403] Division by zero")
             }
             RuntimeError::ImportError { module, message } => {
-                write!(f, "Import error for '{}': {}", module, message)
+                write!(f, "[AXM_601] Import error for '{}': {}", module, message)
+            }
+            RuntimeError::NilCall { hint, .. } => {
+                write!(f, "[AXM_402] Attempt to call nil value — {}", hint)
+            }
+            RuntimeError::NotCallable { type_name, .. } => {
+                write!(f, "[AXM_401] Attempt to call non-callable type '{}'", type_name)
             }
             RuntimeError::GenericError { message, .. } => {
                 write!(f, "{}", message)

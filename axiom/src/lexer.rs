@@ -84,6 +84,11 @@ pub enum Token {
 
     // End of input
     Eof,
+    /// AXM_101: Returned when lexer encounters an unrecognized character.
+    /// Contains the bad character so the diagnostic engine can print it.
+    IllegalChar(char),
+    /// AXM_102: Returned when an unterminated string literal is detected.
+    UnterminatedStr,
 }
 
 pub struct Lexer {
@@ -195,10 +200,12 @@ impl Lexer {
         let mut segments: Vec<(bool, String)> = Vec::new();
         let mut current_literal = String::new();
         let mut has_interpolation = false;
+        let mut terminated = false;
 
         while let Some(ch) = self.current() {
             if ch == quote {
                 self.advance();
+                terminated = true;
                 break;
             } else if ch == '\\' {
                 self.advance();
@@ -257,6 +264,11 @@ impl Lexer {
                 current_literal.push(ch);
                 self.advance();
             }
+        }
+
+        // AXM_102: If we fell out of the loop without seeing the closing quote
+        if !terminated {
+            return Token::UnterminatedStr;
         }
 
         if has_interpolation {
@@ -485,9 +497,12 @@ impl Lexer {
                             }
                             Token::Alias(alias_name)
                         }
-                        _ => {
+                        illegal_ch => {
+                            // AXM_101: Unrecognized character — return an error token
+                            // instead of silently emitting Eof, so the diagnostic engine
+                            // can pinpoint the exact location.
                             self.advance();
-                            Token::Eof
+                            Token::IllegalChar(illegal_ch)
                         }
                     }
                 }

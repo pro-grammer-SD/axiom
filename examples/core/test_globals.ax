@@ -1,0 +1,9 @@
+// Test 1: Check if alg global exists
+let test1 = alg;
+out("Test 1 - alg global:");
+out(test1);
+
+// Test 2: Check if out global exists
+let test2 = out;
+out("Test 2 - out global:");
+out(test2);

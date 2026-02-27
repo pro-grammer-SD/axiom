@@ -1,0 +1,81 @@
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  AXIOM SIMPLE STDLIB DEMO — Easy to understand and test                 ║
+// ║  Tests: closures, fibonacci, standard library modules                   ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
+// ── I. SIMPLE CLOSURE TEST ───────────────────────────────────────────────
+print("=== I. Closure Test ===")
+
+fn make_adder(x) {
+    fn adder(y) {
+        ret x + y
+    }
+    ret adder
+}
+
+let add5 = make_adder(5)
+print("add5(10) = " + add5(10))  // Should be 15
+
+// ── II. SIMPLE FIBONACCI ───────────────────────────────────────────────────
+print("=== II. Fibonacci ===")
+
+fn fib(n) {
+    if n <= 1 {
+        ret n
+    }
+    let a = 0
+    let b = 1
+    let i = 2
+    while i <= n {
+        let tmp = a + b
+        a = b
+        b = tmp
+        i = i + 1
+    }
+    ret b
+}
+
+print("fib(10) = " + fib(10))  // Should be 55
+
+// ── III. BASIC STDLIB TESTS ──────────────────────────────────────────────
+print("=== III. Standard Library ===")
+
+// Test array/range
+let nums = alg.range(5)
+print("alg.range(5) = " + nums)
+
+// Test array length
+print("alg.len(nums) = " + alg.len(nums))
+
+// Test array sum
+print("alg.sum(nums) = " + alg.sum(nums))
+
+// Test string operations
+print("str.upper(hello) = " + str.upper("hello"))
+
+// Test math operations
+print("mth.sqrt(144) = " + mth.sqrt(144))
+
+// ── IV. LAMBDA / HIGHER-ORDER FUNCTIONS ──────────────────────────────────
+print("=== IV. Lambdas ===")
+
+let double = fn(x) { ret x * 2 }
+print("double(7) = " + double(7))  // Should be 14
+
+let triple = fn(x) { ret x * 3 }
+print("triple(5) = " + triple(5))  // Should be 15
+
+// ── V. SIMPLE TAIL RECURSION ────────────────────────────────────────────
+print("=== V. Tail Recursion ===")
+
+fn sum_to(n, acc) {
+    if n == 0 {
+        ret acc
+    }
+    ret sum_to(n - 1, acc + n)
+}
+
+print("sum_to(100, 0) = " + sum_to(100, 0))  // Should be 5050
+
+// ── VI. DONE ───────────────────────────────────────────────────────────
+print("=== All tests complete! ===")

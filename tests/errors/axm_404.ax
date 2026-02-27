@@ -1,0 +1,7 @@
+// AXM_404 — Index out of bounds
+// The list has 3 elements (indices 0-2). Accessing index 99 raises AXM_404.
+// Expected diagnostic: [AXM_404] Index 99 out of bounds (len=3)
+
+let items = [10, 20, 30]
+let bad = items[99]
+print(bad)

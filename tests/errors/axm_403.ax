@@ -1,0 +1,7 @@
+// AXM_403 — Division by zero
+// Expected diagnostic: [AXM_403] Division by zero
+
+let numerator = 100
+let denominator = 0
+let result = numerator / denominator
+print(result)

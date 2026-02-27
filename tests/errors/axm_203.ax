@@ -1,0 +1,9 @@
+// AXM_203 — Type incompatibility in binary operation
+// Cannot add integer 10 to string "hello" — type mismatch.
+// In strict mode this raises AXM_203; in lenient mode it coerces.
+// Expected diagnostic: [AXM_203] Type mismatch: cannot apply '+' to int and str
+
+let x = 10
+let s = "hello"
+let bad = x - s
+print(bad)

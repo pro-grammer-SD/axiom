@@ -300,6 +300,31 @@ impl Parser {
             Token::Out    => self.parse_out_stmt(),
             Token::Print  => self.parse_print_stmt(),
             Token::LBrace => { let b = self.parse_block()?; Ok(Stmt::Block(b)) }
+            // ── Nested named function: fn name(params) { body }
+            // Rewrite as:  let name = fn(params) { body }
+            // This is the fix for AXM_402 / nil-call bug — closures can be
+            // declared inline inside any block and capture their lexical scope.
+            // CRITICAL: Must distinguish fn identifier (named) from fn( (anonymous lambda)
+            Token::Fun | Token::Fn => {
+                match self.peek_nth(1) {
+                    Token::Ident(_) => {
+                        // Named nested function: fn name(params) { body }
+                        self.parse_nested_fn_as_let()
+                    }
+                    Token::LParen => {
+                        // Anonymous lambda: fn(params) { body }
+                        let expr = self.parse_expr()?;
+                        if matches!(self.peek_token(), Token::Semicolon) { self.advance(); }
+                        Ok(Stmt::Expr(expr))
+                    }
+                    _ => {
+                        // Unexpected syntax - let expression parsing handle the error
+                        let expr = self.parse_expr()?;
+                        if matches!(self.peek_token(), Token::Semicolon) { self.advance(); }
+                        Ok(Stmt::Expr(expr))
+                    }
+                }
+            }
             _ => {
                 if matches!(self.peek_token(), Token::RBrace | Token::Eof) {
                     return Err(ParserError::UnexpectedToken {
@@ -819,6 +844,31 @@ impl Parser {
                 span: start,
             }),
         }
+    }
+
+
+    /// Parse a named function declaration inside a block:
+    ///   `fn name(params) { body }` → `Stmt::Let { name, value: Expr::Lambda }`
+    ///
+    /// This enables closures to be declared with readable names inside other
+    /// functions, which is the primary pattern for upvalue capture.
+    fn parse_nested_fn_as_let(&mut self) -> Result<Stmt, ParserError> {
+        let start = self.current_span();
+        // Consume `fn` or `fun`
+        if matches!(self.peek_token(), Token::Fun | Token::Fn) {
+            self.advance();
+        }
+        let name = self.consume_ident()?;
+        self.consume(Token::LParen)?;
+        let params = self.parse_param_list()?;
+        self.consume(Token::RParen)?;
+        let body = self.parse_block()?;
+        let span = start.merge(self.prev_span());
+        Ok(Stmt::Let {
+            name,
+            value: Expr::Lambda { params, body, span },
+            span,
+        })
     }
 
     fn parse_list_items(&mut self) -> Result<Vec<Expr>, ParserError> {

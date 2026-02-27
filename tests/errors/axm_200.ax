@@ -1,0 +1,6 @@
+// AXM_200 — Undefined identifier (with Levenshtein suggestion)
+// "mesage" is not declared. The engine should suggest "message".
+// Expected diagnostic: [AXM_200] 'mesage' is not defined — did you mean 'message'?
+
+let message = "Hello"
+print(mesage)

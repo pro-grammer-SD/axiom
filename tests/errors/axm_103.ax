@@ -1,0 +1,6 @@
+// AXM_103 — Invalid numeric literal
+// 12.3.4 is not a valid float (two decimal points).
+// Expected diagnostic: [AXM_103] Invalid numeric literal '12.3.4' at line 4
+
+let pi = 12.3.4
+print(pi)

@@ -1,0 +1,7 @@
+// AXM_401 — NotCallable
+// 42 is an integer, not a function. Calling it raises AXM_401.
+// Expected diagnostic: [AXM_401] Attempt to call non-callable type 'int'
+
+let x = 42
+let result = x(10)
+print(result)

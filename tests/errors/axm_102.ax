@@ -1,0 +1,6 @@
+// AXM_102 — Unterminated string literal
+// The string "Hello, Axiom is never closed.
+// Expected diagnostic: [AXM_102] Unterminated string literal starting at line 4, col 9
+
+let msg = "Hello, Axiom
+print(msg)

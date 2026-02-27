@@ -1,0 +1,9 @@
+// AXM_201 — Variable used before declaration
+// "counter" is referenced on line 5, but declared on line 7.
+// Expected diagnostic: [AXM_201] Undefined variable 'counter'
+
+fn test() {
+    print(counter)
+    let counter = 0
+}
+test()

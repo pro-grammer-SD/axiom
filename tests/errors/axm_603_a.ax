@@ -1,0 +1,6 @@
+// AXM_603 — Circular import (file A)
+// axm_603_a.ax loads axm_603_b.ax which loads axm_603_a.ax back.
+// Expected diagnostic: [AXM_603] Circular import detected: axm_603_a.ax → axm_603_b.ax → axm_603_a.ax
+
+load @local/axm_603_b
+print("A loaded")

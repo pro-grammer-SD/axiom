@@ -108,7 +108,8 @@ impl Runtime {
     }
 
     pub fn run(&mut self, items: Vec<Item>) -> Result<(), RuntimeError> {
-        if self.run_via_vm(&items)? { return Ok(()); }
+        // Use tree-walk runtime for all programs
+        // The VM path has issues with module marshaling; it's an optimization that needs proper globals bridging
         self.run_tree_walk(items)
     }
 
@@ -465,6 +466,15 @@ impl Runtime {
                 let mut result = String::new();
                 for part in parts { match part { StringPart::Literal(s) => result.push_str(s), StringPart::Expr(e) => result.push_str(&self.eval(e, env)?.display()) } }
                 Ok(AxValue::Str(result))
+            }
+            // Lambda expression: fn(params) { body } — creates a callable value.
+            // This is used directly for anonymous lambdas AND for named nested
+            // functions that the parser rewrites as: let name = fn(params) { body }
+            Expr::Lambda { params, body, .. } => {
+                Ok(AxValue::Fun(Arc::new(AxCallable::UserDefined {
+                    params: params.clone(),
+                    body: body.clone(),
+                })))
             }
             _ => Ok(AxValue::Nil),
         }

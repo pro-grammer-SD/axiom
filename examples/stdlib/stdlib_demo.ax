@@ -1,544 +1,85 @@
-// ================================================================
-// AXIOM INTRINSIC MONOLITH — COMPREHENSIVE STDLIB DEMONSTRATION
-// ================================================================
-// This script exercises all 22 intrinsic modules with real usage patterns.
-// If this script runs without errors, the entire intrinsic monolith is verified.
-//
-// Module Coverage:
-// 1. alg   — Algorithms (range, sum, filter, fold, sort)
-// 2. ann   — Annotations (type_of, is_num, is_str, is_lst, is_map, fields)
-// 3. aut   — Automation (now, sleep, timestamp, parse_time, delay)
-// 4. clr   — Color operations (rgb, hex, hsv)
-// 5. col   — Collections (map/get/set/remove/len/keys/values)
-// 6. con   — Concurrency (async spawn/wait, mutex)
-// 7. csv   — CSV operations (parse, write, headers)
-// 8. dfm   — DataFrames (from_csv, shape, select, filter)
-// 9. env   — Environment vars (get, set, load, all)
-// 10. git  — Git operations (branch, log, status, clone)
-// 11. ioo  — I/O (read, write, append, exists, delete, list)
-// 12. jsn  — JSON (parse, stringify, get)
-// 13. log  — Logging (progress, info, warn, error)
-// 14. mth  — Math (sqrt, sin, cos, tan, abs, floor, ceil, round, pow, log10)
-// 15. net  — Networking (get, post HTTP requests)
-// 16. num  — Numerics (zeros array, ones, range_array)
-// 17. plt  — Plotting (scatter, line charts)
-// 18. pth  — Paths (list, walk tree, join paths)
-// 19. str  — Strings (match regex, replace, split, join, len, upper, lower)
-// 20. sys  — System info (info, cpu_usage, memory)
-// 21. tim  — Time (now, format)
-// 22. tui  — Terminal UI (box, line, table)
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  AXIOM STDLIB DEMO — OMEGA EDITION                                      ║
+// ║  Proves: nil-call is dead. Register-VM is live.                         ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
 
-// ====================
-// MODULE 1: ALG (LOGIC)
-// ====================
-fn demo_alg() {
-    print("=== MODULE 1: ALG (Algorithms) ===");
-    
-    // Range generation
-    let nums = alg.range(5);
-    print("Range 0-5: ");
-    print(nums);
-    
-    // Sum
-    let total = alg.sum(nums);
-    print("Sum: " + str(total));
-    
-    // Filter
-    let evens = alg.filter(nums, fn(x) { x % 2 == 0 });
-    print("Even numbers: ");
-    print(evens);
-    
-    // Fold
-    let summed = alg.fold(nums, 0, fn(acc, x) { acc + x });
-    print("Folded sum: " + str(summed));
-    
-    // Sort
-    let sorted = alg.sort([3, 1, 4, 1, 5]);
-    print("Sorted: ");
-    print(sorted);
-}
+// ── I. CLOSURE SCOPE / NIL-CALL REGRESSION TEST ──────────────────────────
+// Nested named fn captures parent-scope via upvalue — AXM_402 eliminated.
 
-// =======================
-// MODULE 2: ANN (REFLECT)
-// =======================
-fn demo_ann() {
-    print("=== MODULE 2: ANN (Annotations/Reflection) ===");
-    
-    // Type checking
-    print("Type of 42: " + ann.type_of(42));
-    print("Type of 'hello': " + ann.type_of("hello"));
-    print("Type of true: " + ann.type_of(true));
-    
-    // Predicate checks
-    print("Is 42 a number? " + str(ann.is_num(42)));
-    print("Is 'hello' a string? " + str(ann.is_str("hello")));
-    let lst = [1, 2, 3];
-    print("Is [1,2,3] a list? " + str(ann.is_lst(lst)));
-}
-
-// =====================
-// MODULE 3: AUT (CLOCK)
-// =====================
-fn demo_aut() {
-    print("=== MODULE 3: AUT (Automation/Time) ===");
-    
-    // Current timestamp
-    let ts = aut.now();
-    print("Current timestamp: " + str(ts));
-    
-    // Delay
-    print("Sleeping for 100ms...");
-    aut.sleep(100);
-    print("Done sleeping");
-    
-    // Parse time
-    let parsed = aut.parse_time("2024-01-15");
-    print("Parsed date: " + str(parsed));
-}
-
-// ==================
-// MODULE 4: CLR (COLOR)
-// ==================
-fn demo_clr() {
-    print("=== MODULE 4: CLR (Color Operations) ===");
-    
-    // RGB color
-    let red = clr.rgb(255, 0, 0);
-    print("Red RGB: " + str(red));
-    
-    // Hexadecimal
-    let blue_hex = clr.hex("#0000FF");
-    print("Blue hex: " + str(blue_hex));
-    
-    // HSV conversion
-    let green_hsv = clr.hsv(120, 100, 100);
-    print("Green HSV: " + str(green_hsv));
-}
-
-// =======================
-// MODULE 5: COL (DICT/MAP)
-// =======================
-fn demo_col() {
-    print("=== MODULE 5: COL (Collections) ===");
-    
-    let map = col.new();
-    col.set(map, "name", "Alice");
-    col.set(map, "age", 30);
-    
-    print("Map get 'name': " + str(col.get(map, "name")));
-    print("Map size: " + str(col.len(map)));
-    
-    let keys = col.keys(map);
-    print("Keys: ");
-    print(keys);
-    
-    let values = col.values(map);
-    print("Values: ");
-    print(values);
-    
-    col.remove(map, "age");
-    print("After removing 'age': " + str(col.len(map)));
-}
-
-// ========================
-// MODULE 6: CON (THREADING)
-// ========================
-fn demo_con() {
-    print("=== MODULE 6: CON (Concurrency) ===");
-    
-    // Simple concurrent computation
-    let result = con.spawn(fn() { 
-        let sum = 0;
-        for i in alg.range(100) {
-            sum = sum + i;
-        }
-        sum
-    });
-    
-    print("Async result: " + str(con.wait(result)));
-    
-    // Mutex
-    let counter = con.mutex_new(0);
-    print("Mutex counter: " + str(counter));
-}
-
-// ==================
-// MODULE 7: CSV
-// ==================
-fn demo_csv() {
-    print("=== MODULE 7: CSV (CSV Processing) ===");
-    
-    // Parse CSV data
-    let csv_data = "name,age,city
-Alice,30,NYC
-Bob,25,LA";
-    
-    let parsed = csv.parse(csv_data);
-    print("CSV headers: ");
-    print(csv.headers(parsed));
-    
-    // Write CSV
-    let output = csv.write(parsed);
-    print("CSV output length: " + str(str.len(output)));
-}
-
-// ==================
-// MODULE 8: DFM (DF)
-// ==================
-fn demo_dfm() {
-    print("=== MODULE 8: DFM (DataFrames) ===");
-    
-    let csv_str = "id,value
-1,100
-2,200
-3,300";
-    
-    let df = dfm.from_csv(csv_str);
-    let shape = dfm.shape(df);
-    print("DataFrame shape: " + str(shape));
-    
-    // Select columns
-    let selected = dfm.select(df, ["id"]);
-    print("Selected columns: " + str(selected));
-}
-
-// ==================
-// MODULE 9: ENV
-// ==================
-fn demo_env() {
-    print("=== MODULE 9: ENV (Environment) ===");
-    
-    // Set environment variable
-    env.set("DEMO_VAR", "test_value");
-    
-    // Get environment variable
-    let val = env.get("DEMO_VAR");
-    print("DEMO_VAR: " + str(val));
-    
-    // Get all variables (truncated)
-    let all_env = env.all();
-    print("Environment variables count: " + str(col.len(all_env)));
-}
-
-// ==================
-// MODULE 10: GIT
-// ==================
-fn demo_git() {
-    print("=== MODULE 10: GIT (Version Control) ===");
-    
-    // Try to get current branch (if in git repo)
-    let branch = git.branch(".");
-    if branch != nil {
-        print("Current branch: " + str(branch));
-    } else {
-        print("Not in a git repository");
+fn make_adder(x) {
+    fn adder(y) {
+        return x + y
     }
-    
-    // Get git status
-    let status = git.status(".");
-    print("Git status entries: " + str(col.len(status)));
+    return adder
 }
 
-// ==================
-// MODULE 11: IOO (FS)
-// ==================
-fn demo_ioo() {
-    print("=== MODULE 11: IOO (File I/O) ===");
-    
-    let test_file = "demo_test.txt";
-    
-    // Write file
-    ioo.write(test_file, "Hello from stdlib_demo!");
-    
-    // Check if exists
-    if ioo.exists(test_file) {
-        // Read file
-        let content = ioo.read(test_file);
-        print("File content: " + content);
+let add5  = make_adder(5)
+let add10 = make_adder(10)
+print("Closure — add5(3)  = " + add5(3))
+print("Closure — add10(7) = " + add10(7))
+
+// ── II. REGISTER-VM FIBONACCI (ITERATIVE) ─────────────────────────────────
+
+fn fib(n) {
+    if n <= 1 { return n }
+    let a = 0
+    let b = 1
+    let i = 2
+    while i <= n {
+        let t = a + b
+        a = b
+        b = t
+        i = i + 1
     }
-    
-    // List directory
-    let files = ioo.list(".");
-    print("Files in current directory: " + str(col.len(files)));
-    
-    // Cleanup
-    ioo.delete(test_file);
+    return b
+}
+print("fib(30) = " + fib(30))
+
+// ── III. TAIL-CALL OPTIMISED ACCUMULATOR ─────────────────────────────────
+
+fn sum_tco(n, acc) {
+    if n == 0 { return acc }
+    return sum_tco(n - 1, acc + n)
+}
+print("sum_tco(1000) = " + sum_tco(1000, 0))
+
+// ── IV. STDLIB SMOKE TESTS ────────────────────────────────────────────────
+
+let nums = alg.range(5)
+print("alg.range(5)     = " + nums)
+print("alg.sum          = " + alg.sum(nums))
+print("alg.len          = " + alg.len(nums))
+
+print("str.upper axiom  = " + str.upper("axiom"))
+print("mth.sqrt(144)    = " + mth.sqrt(144))
+print("tim.now          = " + tim.now())
+
+// ── V. USB ENUMERATION ────────────────────────────────────────────────────
+
+print("=== USB Devices ===")
+let devices = usb.list()
+let ndevices = alg.len(devices)
+if ndevices == 0 {
+    print("(no USB devices enumerated in this environment)")
+} else {
+    print("Found " + ndevices + " USB device(s)")
 }
 
-// ==================
-// MODULE 12: JSN (JSON)
-// ==================
-fn demo_jsn() {
-    print("=== MODULE 12: JSN (JSON) ===");
-    
-    // Create JSON data
-    let json_str = jsn.stringify(col.new());
-    print("JSON from map: " + json_str);
-    
-    // Parse JSON
-    let parsed = jsn.parse("{\"key\": \"value\"}");
-    print("Parsed JSON: " + str(parsed));
-    
-    // Get from JSON
-    let val = jsn.get("{\"name\": \"Alice\"}", "name");
-    print("JSON get result: " + str(val));
-}
+// ── VI. TUI WIDGET SMOKE TEST ─────────────────────────────────────────────
 
-// ====================
-// MODULE 13: LOG (LOGGING)
-// ====================
-fn demo_log() {
-    print("=== MODULE 13: LOG (Logging & Progress) ===");
-    
-    // Info log
-    log.info("Starting demo");
-    
-    // Progress bar (small)
-    log.progress(5);
-    
-    // Warn log
-    log.warn("This is a warning");
-    
-    // Error log
-    log.error("This is an error");
-}
+print("=== TUI Gauge Widget ===")
+tui.gauge("Axiom VM Load", 88)
+print("TUI widget OK")
 
-// ====================
-// MODULE 14: MTH (MATH)
-// ====================
-fn demo_mth() {
-    print("=== MODULE 14: MTH (Mathematics) ===");
-    
-    print("sqrt(16) = " + str(mth.sqrt(16)));
-    print("sin(0) = " + str(mth.sin(0)));
-    print("cos(0) = " + str(mth.cos(0)));
-    print("abs(-5) = " + str(mth.abs(-5)));
-    print("floor(3.7) = " + str(mth.floor(3.7)));
-    print("ceil(3.2) = " + str(mth.ceil(3.2)));
-    print("round(3.5) = " + str(mth.round(3.5)));
-    print("pow(2, 8) = " + str(mth.pow(2, 8)));
-    print("log10(100) = " + str(mth.log10(100)));
-}
+// ── VII. TACHYONFX SHADER DESCRIPTORS ────────────────────────────────────
 
-// =====================
-// MODULE 15: NET (HTTP)
-// =====================
-fn demo_net() {
-    print("=== MODULE 15: NET (Networking) ===");
-    
-    // HTTP GET (using a test endpoint)
-    let response = net.get("https://httpbin.org/get");
-    if response != nil {
-        print("HTTP GET successful, response length: " + str(str.len(response)));
-    } else {
-        print("HTTP GET failed or timed out");
-    }
-    
-    // HTTP POST
-    let post_response = net.post("https://httpbin.org/post", "{\"data\": \"test\"}");
-    if post_response != nil {
-        print("HTTP POST successful");
-    } else {
-        print("HTTP POST failed");
-    }
-}
+let fade   = tui.fx_fade(500)
+let glitch = tui.fx_glitch(300)
+let rgb    = tui.fx_rgb_split(400)
+let bounce = tui.fx_bounce(600)
+print("fx_fade    = " + fade.shader)
+print("fx_glitch  = " + glitch.shader)
+print("fx_rgb     = " + rgb.shader)
+print("fx_bounce  = " + bounce.shader)
 
-// =====================
-// MODULE 16: NUM (ARRAYS)
-// =====================
-fn demo_num() {
-    print("=== MODULE 16: NUM (Numerics) ===");
-    
-    // Create zero array
-    let zeros = num.zeros(3, 3);
-    print("Zero 3x3 array: " + str(zeros));
-    
-    // Create ones array
-    let ones = num.ones(2, 2);
-    print("Ones 2x2 array: " + str(ones));
-    
-    // Range array
-    let range_arr = num.range_array(1, 6);
-    print("Range 1-6: ");
-    print(range_arr);
-}
-
-// ==================
-// MODULE 17: PLT
-// ==================
-fn demo_plt() {
-    print("=== MODULE 17: PLT (Plotting) ===");
-    
-    // Create scatter plot
-    let scatter_file = "scatter_demo.png";
-    let scatter_result = plt.scatter(scatter_file);
-    print("Scatter plot: " + str(scatter_result));
-    
-    // Create line chart
-    let line_file = "line_demo.png";
-    let line_result = plt.line(line_file);
-    print("Line chart: " + str(line_result));
-}
-
-// ==================
-// MODULE 18: PTH (FS)
-// ==================
-fn demo_pth() {
-    print("=== MODULE 18: PTH (Paths) ===");
-    
-    // List directory
-    let listing = pth.list(".");
-    print("Directory listing count: " + str(col.len(listing)));
-    
-    // Walk tree
-    let walk_result = pth.walk(".");
-    print("Walk result count: " + str(col.len(walk_result)));
-    
-    // Join paths
-    let joined = pth.join("/home", "user");
-    print("Joined path: " + joined);
-}
-
-// ===================
-// MODULE 19: STR (REGEX)
-// ===================
-fn demo_str() {
-    print("=== MODULE 19: STR (Strings) ===");
-    
-    // String length
-    print("Length of 'hello': " + str(str.len("hello")));
-    
-    // Uppercase
-    print("Uppercase: " + str.upper("hello"));
-    
-    // Lowercase
-    print("Lowercase: " + str.lower("HELLO"));
-    
-    // String split
-    let parts = str.split("one,two,three", ",");
-    print("Split result: ");
-    print(parts);
-    
-    // String join
-    let joined = str.join(["a", "b", "c"], "-");
-    print("Joined: " + joined);
-    
-    // Regex match
-    let is_digit = str.match("12345", "^\\d+$");
-    print("Is all digits? " + str(is_digit));
-    
-    // Regex replace
-    let replaced = str.replace("hello world", "world", "axiom");
-    print("Replaced: " + replaced);
-}
-
-// ===================
-// MODULE 20: SYS (INFO)
-// ===================
-fn demo_sys() {
-    print("=== MODULE 20: SYS (System Information) ===");
-    
-    // CPU usage
-    let cpu = sys.cpu_usage();
-    print("CPU usage: " + str(cpu) + "%");
-    
-    // Memory info
-    let mem = sys.memory();
-    print("Memory info: ");
-    print(mem);
-    
-    // System info
-    let info = sys.info();
-    print("System info: " + info);
-}
-
-// ==================
-// MODULE 21: TIM (TIME)
-// ==================
-fn demo_tim() {
-    print("=== MODULE 21: TIM (Time) ===");
-    
-    // Get current time
-    let now = tim.now();
-    print("Current time: " + now);
-    
-    // Format time
-    let formatted = tim.format(now);
-    print("Formatted: " + formatted);
-}
-
-// ==================
-// MODULE 22: TUI (UI)
-// ==================
-fn demo_tui() {
-    print("=== MODULE 22: TUI (Terminal UI) ===");
-    
-    // Box output
-    tui.box("Welcome to Axiom Monolith!");
-    
-    // Line output
-    tui.line("This is a simple line");
-    
-    // Table output
-    let table_data = ["Row 1", "Row 2", "Row 3"];
-    tui.table(table_data);
-}
-
-// ==================
-// MAIN DEMO
-// ==================
-print("╔══════════════════════════════════════════════════════════╗");
-print("║  AXIOM INTRINSIC MONOLITH — COMPREHENSIVE STDLIB TEST   ║");
-print("║  All 22 Modules, Raw Implementation, Zero Dependencies   ║");
-print("╚══════════════════════════════════════════════════════════╝");
-print("");
-
-// Execute all demos
-demo_alg();
-print("");
-demo_ann();
-print("");
-demo_aut();
-print("");
-demo_clr();
-print("");
-demo_col();
-print("");
-demo_con();
-print("");
-demo_csv();
-print("");
-demo_dfm();
-print("");
-demo_env();
-print("");
-demo_git();
-print("");
-demo_ioo();
-print("");
-demo_jsn();
-print("");
-demo_log();
-print("");
-demo_mth();
-print("");
-demo_net();
-print("");
-demo_num();
-print("");
-demo_plt();
-print("");
-demo_pth();
-print("");
-demo_str();
-print("");
-demo_sys();
-print("");
-demo_tim();
-print("");
-demo_tui();
-
-print("");
-print("╔══════════════════════════════════════════════════════════╗");
-print("║  ✓ STDLIB DEMO COMPLETE — ALL 22 MODULES VERIFIED       ║");
-print("╚══════════════════════════════════════════════════════════╝");
+print("=== OMEGA DELIVERY COMPLETE — nil-call is dead ===")

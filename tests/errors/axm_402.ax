@@ -1,0 +1,15 @@
+// AXM_402 — NilCall: closure scope / nil binding bug
+// adder is referenced inside inner() before it is assigned.
+// Without correct upvalue capture, this crashes with nil-call.
+// Expected diagnostic: [AXM_402] Attempt to call nil value — check scope
+
+fn outer() {
+    let adder = nil
+    fn inner(x) {
+        return adder(x)   // adder is nil here — triggers AXM_402
+    }
+    return inner
+}
+
+let f = outer()
+f(5)

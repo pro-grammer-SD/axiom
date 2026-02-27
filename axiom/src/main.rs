@@ -121,7 +121,11 @@ fn run(cli: Cli) -> Result<()> {
 
             let mut parser = Parser::new(&source, 0);
             let items = parser.parse()
-                .map_err(|e| miette::miette!("Parse error: {}", e))?;
+                .map_err(|e| {
+                    use axiom::diagnostics::DiagnosticEngine;
+                    let engine = DiagnosticEngine::new(path.display().to_string(), &source);
+                    miette::Report::new(engine.from_parser(&e)) // Returns a pretty report
+                })?;
 
             let mut runtime = Runtime::new();
             runtime.run(items)
@@ -137,13 +141,25 @@ fn run(cli: Cli) -> Result<()> {
         // axiom chk <file.ax>
         // ----------------------------------------------------------------
         Commands::Chk { path } => {
-            let source = std::fs::read_to_string(&path)
-                .map_err(|e| miette::miette!("Cannot read '{}': {}", path.display(), e))?;
+            use axiom::diagnostics::{DiagnosticEngine, ErrorCode, AxiomDiagnostic};
+            use axiom::errors::RuntimeError;
 
+            // 1. Read source - Fixed the no_source call
+            let source = std::fs::read_to_string(&path).map_err(|e| {
+                let msg = format!("Cannot read '{}': {}", path.display(), e);
+                // no_source belongs to AxiomDiagnostic, not DiagnosticEngine
+                miette::Report::new(AxiomDiagnostic::no_source(ErrorCode::IoError, msg))
+            })?;
+
+            let engine = DiagnosticEngine::new(path.display().to_string(), &source);
+
+            // 2. Parse - Fixed to use miette::Report
             let mut parser = Parser::new(&source, 0);
-            let items = parser.parse()
-                .map_err(|e| miette::miette!("Parse error: {}", e))?;
+            let items = parser.parse().map_err(|e| {
+                miette::Report::new(engine.from_parser(&e))
+            })?;
 
+            // 3. Semantic Analysis
             let mut chk = SemanticAnalyzer::new();
             let diagnostics = chk.check(&items);
 
@@ -152,7 +168,16 @@ fn run(cli: Cli) -> Result<()> {
             } else {
                 let mut has_error = false;
                 for d in &diagnostics {
-                    println!("{}", d);
+                    // FIX: Convert the generic Diagnostic into a RuntimeError 
+                    // so from_runtime can handle it, or use a custom converter.
+                    let runtime_err = RuntimeError::GenericError { 
+                        message: d.message.clone(), 
+                        span: d.span 
+                    };
+                    
+                    let axiom_diag = engine.from_runtime(&runtime_err);
+                    engine.emit(&axiom_diag);
+
                     if matches!(d.level, DiagnosticLevel::Error) {
                         has_error = true;
                     }
@@ -162,7 +187,7 @@ fn run(cli: Cli) -> Result<()> {
                 }
             }
         }
-
+        
         // ----------------------------------------------------------------
         // axiom fmt <file.ax> [--write]
         // ----------------------------------------------------------------

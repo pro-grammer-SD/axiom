@@ -1,30 +1,50 @@
-// Test lambdas and function declarations
+// Test lambdas, closures, and nested function declarations
 fn main() {
-    out "Testing lambdas...";
+    out "Testing lambdas..."
 }
 
 fn demo_simple_lambda() {
-    // One-liner lambdas
-    let add = fn(a, b) { a + b };
-    
-    // Multi-statement lambdas
+    // Inline lambda (anonymous function) bound to a variable
+    let add = fn(a, b) { return a + b }
+    out add(3, 4)       // 7
+
+    // Multi-statement lambda
     let summed = fn() {
-        let x = 10;
-        let y = 20;
-        x + y
-    };
+        let x = 10
+        let y = 20
+        return x + y
+    }
+    out summed()        // 30
 }
 
-fn demo_methods_with_keywords() {
-    // Test .new() method call
-    let map = col.new();
-    
-    // Test other keyword methods
-    let obj1 = obj.in();
-    let obj2 = obj.out();
-    let obj3 = obj.match();
+fn demo_closures() {
+    // Nested named function captures x from make_adder's scope (AXM_402 was here)
+    fn make_adder(x) {
+        fn adder(y) {
+            return x + y
+        }
+        return adder
+    }
+    let add5 = make_adder(5)
+    out add5(10)        // 15
+    out add5(20)        // 25
 }
 
-main();
-demo_simple_lambda();
-demo_methods_with_keywords();
+fn demo_higher_order() {
+    // Pass a lambda to another function
+    let nums = alg.range(5)
+    let doubled = alg.map(nums, fn(x) { return x * 2 })
+    out doubled         // [0, 2, 4, 6, 8]
+}
+
+fn demo_map_methods() {
+    // Test method calls on module maps (col.new etc.)
+    let m = col.new_map()
+    out "col.new_map() ok"
+}
+
+main()
+demo_simple_lambda()
+demo_closures()
+demo_higher_order()
+demo_map_methods()

@@ -1,0 +1,5 @@
+// AXM_603 — Circular import (file B — loaded by axm_603_a.ax)
+// This file loads back axm_603_a.ax, completing the cycle.
+
+load @local/axm_603_a
+print("B loaded")

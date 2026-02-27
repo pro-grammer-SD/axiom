@@ -730,11 +730,12 @@ pub fn compile_program(items: &[Item], source: &str) -> (Proto, GlobalTable) {
     let mut globals = GlobalTable::new();
 
     // Pre-intern standard globals so the VM can index them by u16
-    for name in &["out", "print", "in", "str", "int", "bol", "type", "nil",
+    // NOTE: Module names (alg, str, etc.) are NOT pre-interned here.
+    // They will be dynamically registered by intrinsics::register() at runtime,
+    // and will be added to the global_table at first use (when member accessed like alg.range).
+    for name in &["out", "print", "in", "int", "bol", "type", "nil",
                    "sqrt", "abs", "floor", "ceil", "pow", "min", "max", "avg",
-                   "alg", "ann", "aut", "clr", "col", "con", "csv", "dfm",
-                   "env", "git", "ioo", "jsn", "log", "mth", "net", "num",
-                   "plt", "pth", "sys", "tim", "tui", "cli",
+                   "str",  // built-in str() function, separate from str module
                    "chdir", "cwd", "__load"] {
         globals.intern(name);
     }

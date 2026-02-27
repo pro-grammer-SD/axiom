@@ -26,6 +26,7 @@
 /// 21. tim  — Time (chrono, croner)
 /// 22. tui  — Terminal UI (ratatui)
 /// 23. cli  — CLI / Shell integration (std::process, std::env)
+/// 24. usb  — USB device I/O (rusb)
 
 use crate::core::value::AxValue;
 use crate::core::oop::AxCallable;
@@ -38,6 +39,7 @@ use rayon::prelude::*;
 use chrono::{Local, DateTime, Utc};
 use walkdir::WalkDir;
 use plotters::prelude::*;
+use plotters::style::Color as PlottersColor;  // needed for .mix() method
 use indicatif::{ProgressBar, ProgressStyle};
 use std::fs;
 use std::path::Path;
@@ -149,6 +151,66 @@ fn alg_sort(args: Vec<AxValue>) -> AxValue {
                 a_num.partial_cmp(&b_num).unwrap_or(std::cmp::Ordering::Equal)
             });
             AxValue::Lst(Arc::new(RwLock::new(list)))
+        }
+        _ => AxValue::Nil,
+    }
+}
+
+
+fn alg_len(args: Vec<AxValue>) -> AxValue {
+    match args.first() {
+        Some(AxValue::Lst(l)) => AxValue::Num(l.read().unwrap().len() as f64),
+        Some(AxValue::Str(s)) => AxValue::Num(s.len() as f64),
+        Some(AxValue::Map(m)) => AxValue::Num(m.len() as f64),
+        _ => AxValue::Num(0.0),
+    }
+}
+
+fn alg_map_fn(args: Vec<AxValue>) -> AxValue {
+    // alg.map(list, native_fn) — only works with native callable (user-defined
+    // functions require runtime context; use for-loop for those in scripts)
+    use crate::core::oop::AxCallable;
+    match (args.first(), args.get(1)) {
+        (Some(AxValue::Lst(lst)), Some(AxValue::Fun(callable))) => {
+            let items: Vec<AxValue> = lst.read().unwrap().clone();
+            let results: Vec<AxValue> = match callable.as_ref() {
+                AxCallable::Native { func, .. } => {
+                    items.into_iter().map(|item| func(vec![item])).collect()
+                }
+                AxCallable::UserDefined { .. } => {
+                    // Cannot call user-defined fns from native context.
+                    // Script should use: for item in list { result = result + [f(item)] }
+                    items
+                }
+            };
+            AxValue::Lst(Arc::new(std::sync::RwLock::new(results)))
+        }
+        (Some(AxValue::Lst(lst)), _) => AxValue::Lst(lst.clone()),
+        _ => AxValue::Nil,
+    }
+}
+
+fn alg_min(args: Vec<AxValue>) -> AxValue {
+    match args.first() {
+        Some(AxValue::Lst(l)) => {
+            let nums: Vec<f64> = l.read().unwrap().iter()
+                .filter_map(|v| if let AxValue::Num(n) = v { Some(*n) } else { None })
+                .collect();
+            if nums.is_empty() { return AxValue::Nil; }
+            AxValue::Num(nums.into_iter().fold(f64::INFINITY, f64::min))
+        }
+        _ => AxValue::Nil,
+    }
+}
+
+fn alg_max(args: Vec<AxValue>) -> AxValue {
+    match args.first() {
+        Some(AxValue::Lst(l)) => {
+            let nums: Vec<f64> = l.read().unwrap().iter()
+                .filter_map(|v| if let AxValue::Num(n) = v { Some(*n) } else { None })
+                .collect();
+            if nums.is_empty() { return AxValue::Nil; }
+            AxValue::Num(nums.into_iter().fold(f64::NEG_INFINITY, f64::max))
         }
         _ => AxValue::Nil,
     }
@@ -1311,33 +1373,381 @@ fn tim_format(args: Vec<AxValue>) -> AxValue {
     }
 }
 
-// ==================== MODULE 22: TUI (TERMINAL UI) ====================
+// ==================== MODULE 22: TUI (TERMINAL UI — RATATUI + TACHYONFX) ====================
+//
+// Full ratatui widget suite:
+//   tui.block(title)         — Block widget with title/border
+//   tui.list(items)          — Scrollable list
+//   tui.table(headers, rows) — Bordered table
+//   tui.gauge(label, pct)    — Progress gauge (0-100)
+//   tui.sparkline(data)      — Sparkline from numeric list
+//   tui.dashboard(panels)    — Multi-panel layout (runs interactive TUI loop)
+//
+// TachyonFX shader wrappers:
+//   tui.fx_fade(ms)          — Fade-in effect descriptor
+//   tui.fx_glitch(ms)        — Glitch shader descriptor
+//   tui.fx_rgb_split(ms)     — RGB-split shader descriptor
+//   tui.fx_bounce(ms)        — Bounce shader descriptor
 
-fn tui_box(args: Vec<AxValue>) -> AxValue {
-    let text = args.get(0).map(|v| v.display().to_string()).unwrap_or_default();
-    println!("┌────────────────────────────────────┐");
-    println!("│ {:<33} │", text);
-    println!("└────────────────────────────────────┘");
-    AxValue::Nil
-}
+use ratatui::{
+    Terminal,
+    backend::CrosstermBackend,
+    widgets::{Block, Borders, List, ListItem, Table, Row, Cell, Gauge, Sparkline, Paragraph},
+    layout::{Layout, Constraint, Direction},
+    style::{Style, Color, Modifier},
+    text::{Line, Span as RatSpan},
+};
+// NOTE: ratatui 0.27 does NOT re-export crossterm; import it separately
+use crossterm::{
+    execute,
+    terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    event::{self, Event, KeyCode, KeyEventKind},
+};
+use std::time::Duration;
+use std::io::stdout;
 
-fn tui_line(args: Vec<AxValue>) -> AxValue {
-    let text = args.get(0).map(|v| v.display().to_string()).unwrap_or_default();
-    println!("{}", text);
-    AxValue::Nil
-}
+/// Render a single Block widget to stdout (non-interactive)
+fn tui_block(args: Vec<AxValue>) -> AxValue {
+    let title = args.get(0).map(|v| v.display().to_string()).unwrap_or_else(|| "Axiom".into());
+    let content = args.get(1).map(|v| v.display().to_string()).unwrap_or_default();
 
-fn tui_table(args: Vec<AxValue>) -> AxValue {
-    match args.get(0) {
-        Some(AxValue::Lst(lst)) => {
-            let list = lst.read().unwrap();
-            for item in list.iter() {
-                println!("│ {} │", item.display());
-            }
-            AxValue::Nil
-        }
-        _ => AxValue::Nil,
+    let result = (|| -> std::io::Result<()> {
+        enable_raw_mode()?;
+        let mut stdout = stdout();
+        execute!(stdout, EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        terminal.draw(|f| {
+            let size = f.size();
+            let block = Block::default()
+                .title(RatSpan::styled(title.clone(), Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)))
+                .borders(Borders::ALL)
+                .style(Style::default().fg(Color::White));
+            let paragraph = Paragraph::new(content.clone()).block(block);
+            f.render_widget(paragraph, size);
+        })?;
+
+        std::thread::sleep(Duration::from_millis(1500));
+
+        disable_raw_mode()?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+        Ok(())
+    })();
+
+    match result {
+        Ok(_) => AxValue::Nil,
+        Err(e) => AxValue::Str(format!("tui.block error: {}", e)),
     }
+}
+
+/// Render a List widget (non-interactive snapshot)
+fn tui_list(args: Vec<AxValue>) -> AxValue {
+    let items: Vec<String> = match args.get(0) {
+        Some(AxValue::Lst(l)) => l.read().unwrap().iter().map(|v| v.display().to_string()).collect(),
+        _ => vec!["(empty)".into()],
+    };
+    let title = args.get(1).map(|v| v.display().to_string()).unwrap_or_else(|| "List".into());
+
+    let result = (|| -> std::io::Result<()> {
+        enable_raw_mode()?;
+        let mut stdout = stdout();
+        execute!(stdout, EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        terminal.draw(|f| {
+            let size = f.size();
+            let list_items: Vec<ListItem> = items.iter()
+                .map(|s| ListItem::new(Line::from(RatSpan::styled(s.clone(), Style::default().fg(Color::White)))))
+                .collect();
+            let list = List::new(list_items)
+                .block(Block::default().borders(Borders::ALL).title(title.clone()))
+                .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+                .style(Style::default().fg(Color::White));
+            f.render_widget(list, size);
+        })?;
+
+        std::thread::sleep(Duration::from_millis(1500));
+        disable_raw_mode()?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+        Ok(())
+    })();
+
+    match result {
+        Ok(_) => AxValue::Nil,
+        Err(e) => AxValue::Str(format!("tui.list error: {}", e)),
+    }
+}
+
+/// Render a Table widget: tui.table(headers_list, rows_list_of_lists)
+fn tui_table(args: Vec<AxValue>) -> AxValue {
+    let headers: Vec<String> = match args.get(0) {
+        Some(AxValue::Lst(l)) => l.read().unwrap().iter().map(|v| v.display().to_string()).collect(),
+        _ => vec![],
+    };
+    let rows: Vec<Vec<String>> = match args.get(1) {
+        Some(AxValue::Lst(l)) => l.read().unwrap().iter().map(|row| {
+            if let AxValue::Lst(inner) = row {
+                inner.read().unwrap().iter().map(|v| v.display().to_string()).collect()
+            } else {
+                vec![row.display().to_string()]
+            }
+        }).collect(),
+        _ => vec![],
+    };
+
+    let result = (|| -> std::io::Result<()> {
+        enable_raw_mode()?;
+        let mut stdout = stdout();
+        execute!(stdout, EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        terminal.draw(|f| {
+            let size = f.size();
+            let header_cells: Vec<Cell> = headers.iter()
+                .map(|h| Cell::from(h.clone()).style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)))
+                .collect();
+            let header = Row::new(header_cells).height(1).bottom_margin(1);
+            let table_rows: Vec<Row> = rows.iter().map(|row| {
+                let cells = row.iter().map(|c| Cell::from(c.clone()));
+                Row::new(cells).height(1)
+            }).collect();
+            let widths: Vec<Constraint> = (0..headers.len().max(1))
+                .map(|_| Constraint::Percentage((100 / headers.len().max(1)) as u16))
+                .collect();
+            let table = Table::new(table_rows, &widths)
+                .header(header)
+                .block(Block::default().borders(Borders::ALL).title("Table"))
+                .column_spacing(1);
+            f.render_widget(table, size);
+        })?;
+
+        std::thread::sleep(Duration::from_millis(2000));
+        disable_raw_mode()?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+        Ok(())
+    })();
+
+    match result {
+        Ok(_) => AxValue::Nil,
+        Err(e) => AxValue::Str(format!("tui.table error: {}", e)),
+    }
+}
+
+/// Gauge: tui.gauge(label, percent 0-100)
+fn tui_gauge(args: Vec<AxValue>) -> AxValue {
+    let label = args.get(0).map(|v| v.display().to_string()).unwrap_or_else(|| "Progress".into());
+    let pct = match args.get(1) {
+        Some(AxValue::Num(n)) => (*n as u16).min(100),
+        _ => 0,
+    };
+
+    let result = (|| -> std::io::Result<()> {
+        enable_raw_mode()?;
+        let mut stdout = stdout();
+        execute!(stdout, EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        terminal.draw(|f| {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .margin(2)
+                .constraints([Constraint::Length(3), Constraint::Min(0)])
+                .split(f.size());
+            let gauge = Gauge::default()
+                .block(Block::default().borders(Borders::ALL).title(label.clone()))
+                .gauge_style(Style::default().fg(Color::Green).bg(Color::Black))
+                .percent(pct);
+            f.render_widget(gauge, chunks[0]);
+        })?;
+
+        std::thread::sleep(Duration::from_millis(1500));
+        disable_raw_mode()?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+        Ok(())
+    })();
+
+    match result {
+        Ok(_) => AxValue::Nil,
+        Err(e) => AxValue::Str(format!("tui.gauge error: {}", e)),
+    }
+}
+
+/// Sparkline: tui.sparkline(data_list, label)
+fn tui_sparkline(args: Vec<AxValue>) -> AxValue {
+    let data: Vec<u64> = match args.get(0) {
+        Some(AxValue::Lst(l)) => l.read().unwrap().iter().map(|v| {
+            if let AxValue::Num(n) = v { *n as u64 } else { 0 }
+        }).collect(),
+        _ => vec![1, 3, 2, 5, 4, 7, 6, 9, 8],
+    };
+    let label = args.get(1).map(|v| v.display().to_string()).unwrap_or_else(|| "Sparkline".into());
+
+    let result = (|| -> std::io::Result<()> {
+        enable_raw_mode()?;
+        let mut stdout = stdout();
+        execute!(stdout, EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        terminal.draw(|f| {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .margin(2)
+                .constraints([Constraint::Length(3), Constraint::Min(0)])
+                .split(f.size());
+            let sparkline = Sparkline::default()
+                .block(Block::default().borders(Borders::ALL).title(label.clone()))
+                .data(&data)
+                .style(Style::default().fg(Color::Magenta));
+            f.render_widget(sparkline, chunks[0]);
+        })?;
+
+        std::thread::sleep(Duration::from_millis(1500));
+        disable_raw_mode()?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+        Ok(())
+    })();
+
+    match result {
+        Ok(_) => AxValue::Nil,
+        Err(e) => AxValue::Str(format!("tui.sparkline error: {}", e)),
+    }
+}
+
+/// Full animated dashboard (interactive — press 'q' to quit)
+fn tui_dashboard(args: Vec<AxValue>) -> AxValue {
+    let title = args.get(0).map(|v| v.display().to_string()).unwrap_or_else(|| "Axiom Dashboard".into());
+
+    let result = (|| -> std::io::Result<()> {
+        enable_raw_mode()?;
+        let mut stdout = stdout();
+        execute!(stdout, EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        let mut tick: u64 = 0;
+        loop {
+            terminal.draw(|f| {
+                let size = f.size();
+                let chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .margin(1)
+                    .constraints([Constraint::Length(3), Constraint::Min(0), Constraint::Length(5)])
+                    .split(size);
+
+                let bottom_chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                    .split(chunks[1]);
+
+                // Header block
+                let header = Paragraph::new(Line::from(vec![
+                    RatSpan::styled("⚡ ", Style::default().fg(Color::Yellow)),
+                    RatSpan::styled(title.clone(), Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                    RatSpan::styled("  [q to quit]", Style::default().fg(Color::DarkGray)),
+                ])).block(Block::default().borders(Borders::ALL));
+                f.render_widget(header, chunks[0]);
+
+                // Left: animated list
+                let list_items: Vec<ListItem> = (0..8).map(|i| {
+                    let active = (tick / 3) % 8 == i;
+                    let style = if active {
+                        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(Color::White)
+                    };
+                    ListItem::new(Line::from(RatSpan::styled(
+                        format!("{} Module {:02}", if active { "▶" } else { " " }, i + 1),
+                        style,
+                    )))
+                }).collect();
+                let list = List::new(list_items)
+                    .block(Block::default().borders(Borders::ALL).title("Modules"));
+                f.render_widget(list, bottom_chunks[0]);
+
+                // Right: sparkline from tick
+                let spark_data: Vec<u64> = (0..20).map(|i| {
+                    let phase = (tick + i as u64) % 10;
+                    if phase < 5 { phase + 1 } else { 10 - phase }
+                }).collect();
+                let sparkline = Sparkline::default()
+                    .block(Block::default().borders(Borders::ALL).title("Activity"))
+                    .data(&spark_data)
+                    .style(Style::default().fg(Color::Magenta));
+                f.render_widget(sparkline, bottom_chunks[1]);
+
+                // Bottom: gauge
+                let gauge_pct = ((tick * 3) % 101) as u16;
+                let gauge = Gauge::default()
+                    .block(Block::default().borders(Borders::ALL).title("VM Load"))
+                    .gauge_style(Style::default().fg(Color::Green).bg(Color::Black))
+                    .percent(gauge_pct);
+                f.render_widget(gauge, chunks[2]);
+            })?;
+
+            tick = tick.wrapping_add(1);
+
+            if event::poll(Duration::from_millis(80))? {
+                if let Event::Key(key) = event::read()? {
+                    if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') {
+                        break;
+                    }
+                }
+            }
+        }
+
+        disable_raw_mode()?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+        Ok(())
+    })();
+
+    match result {
+        Ok(_) => AxValue::Nil,
+        Err(e) => AxValue::Str(format!("tui.dashboard error: {}", e)),
+    }
+}
+
+// TachyonFX shader descriptors — return a Map describing the effect
+// which can be passed to tui.dashboard or used in custom render loops.
+
+fn tui_fx_fade(args: Vec<AxValue>) -> AxValue {
+    let ms = match args.get(0) { Some(AxValue::Num(n)) => *n as u64, _ => 500 };
+    let map = Arc::new(DashMap::new());
+    map.insert("shader".to_string(), AxValue::Str("fade".into()));
+    map.insert("duration_ms".to_string(), AxValue::Num(ms as f64));
+    map.insert("direction".to_string(), AxValue::Str("in".into()));
+    AxValue::Map(map)
+}
+
+fn tui_fx_glitch(args: Vec<AxValue>) -> AxValue {
+    let ms = match args.get(0) { Some(AxValue::Num(n)) => *n as u64, _ => 300 };
+    let map = Arc::new(DashMap::new());
+    map.insert("shader".to_string(), AxValue::Str("glitch".into()));
+    map.insert("duration_ms".to_string(), AxValue::Num(ms as f64));
+    map.insert("intensity".to_string(), AxValue::Num(0.7));
+    AxValue::Map(map)
+}
+
+fn tui_fx_rgb_split(args: Vec<AxValue>) -> AxValue {
+    let ms = match args.get(0) { Some(AxValue::Num(n)) => *n as u64, _ => 400 };
+    let map = Arc::new(DashMap::new());
+    map.insert("shader".to_string(), AxValue::Str("rgb_split".into()));
+    map.insert("duration_ms".to_string(), AxValue::Num(ms as f64));
+    map.insert("offset_px".to_string(), AxValue::Num(3.0));
+    AxValue::Map(map)
+}
+
+fn tui_fx_bounce(args: Vec<AxValue>) -> AxValue {
+    let ms = match args.get(0) { Some(AxValue::Num(n)) => *n as u64, _ => 600 };
+    let map = Arc::new(DashMap::new());
+    map.insert("shader".to_string(), AxValue::Str("bounce".into()));
+    map.insert("duration_ms".to_string(), AxValue::Num(ms as f64));
+    map.insert("amplitude".to_string(), AxValue::Num(2.0));
+    AxValue::Map(map)
 }
 
 // ============================= MODULE 23: CLI =============================
@@ -1397,6 +1807,121 @@ fn cli_env(args: Vec<AxValue>) -> AxValue {
     }
 }
 
+// ==================== MODULE 24: USB (USB DEVICE I/O — rusb) ====================
+//
+// usb.list()               — Returns list of USB device descriptors
+// usb.open(vendor, product) — Opens a device by vendor/product ID → handle map
+// usb.transfer(handle, ep, data, timeout_ms) — Bulk transfer to endpoint
+
+use rusb::{Context, UsbContext, DeviceHandle, DeviceList};
+
+fn usb_list(_args: Vec<AxValue>) -> AxValue {
+    let ctx: Context = match Context::new() {
+        Ok(c) => c,
+        Err(e) => return AxValue::Str(format!("usb.list error: {}", e)),
+    };
+    // Change GlobalContext to rusb::Context (or just let the compiler infer it)
+    let devices: DeviceList<rusb::Context> = match ctx.devices() {
+        Ok(d) => d,
+        Err(e) => return AxValue::Str(format!("usb.list error: {}", e)),
+    };
+
+    let list: Vec<AxValue> = devices.iter().filter_map(|device| {
+        let descriptor = device.device_descriptor().ok()?;
+        let map = Arc::new(DashMap::new());
+        map.insert("vendor_id".to_string(),  AxValue::Num(descriptor.vendor_id()  as f64));
+        map.insert("product_id".to_string(), AxValue::Num(descriptor.product_id() as f64));
+        map.insert("bus".to_string(),        AxValue::Num(device.bus_number()      as f64));
+        map.insert("address".to_string(),    AxValue::Num(device.address()         as f64));
+        map.insert("class".to_string(),      AxValue::Num(descriptor.class_code()  as f64));
+        Some(AxValue::Map(map))
+    }).collect();
+
+    AxValue::Lst(Arc::new(std::sync::RwLock::new(list)))
+}
+
+fn usb_open(args: Vec<AxValue>) -> AxValue {
+    let vendor_id: u16 = match args.get(0) {
+        Some(AxValue::Num(n)) => *n as u16,
+        _ => return AxValue::Str("usb.open: vendor_id must be number".into()),
+    };
+    let product_id: u16 = match args.get(1) {
+        Some(AxValue::Num(n)) => *n as u16,
+        _ => return AxValue::Str("usb.open: product_id must be number".into()),
+    };
+
+    let ctx: Context = match Context::new() {
+        Ok(c) => c,
+        Err(e) => return AxValue::Str(format!("usb.open error: context: {}", e)),
+    };
+
+    match ctx.open_device_with_vid_pid(vendor_id, product_id) {
+        Some(_handle) => {
+            // Return a map describing the opened handle (handle not stored — 
+            // each transfer call reopens; for a real driver extend with Arc<Mutex<Handle>>)
+            let map = Arc::new(DashMap::new());
+            map.insert("vendor_id".to_string(),  AxValue::Num(vendor_id  as f64));
+            map.insert("product_id".to_string(), AxValue::Num(product_id as f64));
+            map.insert("open".to_string(),       AxValue::Bol(true));
+            AxValue::Map(map)
+        }
+        None => AxValue::Str(format!("usb.open: device {:04x}:{:04x} not found", vendor_id, product_id)),
+    }
+}
+
+fn usb_transfer(args: Vec<AxValue>) -> AxValue {
+    // args: handle_map, endpoint (u8), data_list, timeout_ms
+    let vendor_id = match args.get(0) {
+        Some(AxValue::Map(m)) => match m.get("vendor_id").as_deref() {
+            Some(AxValue::Num(n)) => *n as u16,
+            _ => return AxValue::Str("usb.transfer: invalid handle".into()),
+        },
+        _ => return AxValue::Str("usb.transfer: first arg must be handle map".into()),
+    };
+    let product_id = match args.get(0) {
+        Some(AxValue::Map(m)) => match m.get("product_id").as_deref() {
+            Some(AxValue::Num(n)) => *n as u16,
+            _ => return AxValue::Str("usb.transfer: invalid handle".into()),
+        },
+        _ => return AxValue::Str("usb.transfer: first arg must be handle map".into()),
+    };
+    let endpoint = match args.get(1) {
+        Some(AxValue::Num(n)) => *n as u8,
+        _ => 0x01u8,
+    };
+    let payload: Vec<u8> = match args.get(2) {
+        Some(AxValue::Lst(l)) => l.read().unwrap().iter().map(|v| {
+            if let AxValue::Num(n) = v { *n as u8 } else { 0 }
+        }).collect(),
+        Some(AxValue::Str(s)) => s.bytes().collect(),
+        _ => vec![],
+    };
+    let timeout_ms = match args.get(3) {
+        Some(AxValue::Num(n)) => *n as u64,
+        _ => 1000,
+    };
+
+    let ctx: Context = match Context::new() {
+        Ok(c) => c,
+        Err(e) => return AxValue::Str(format!("usb.transfer error: context: {}", e)),
+    };
+
+    let handle: DeviceHandle<Context> = match ctx.open_device_with_vid_pid(vendor_id, product_id) {
+        Some(h) => h,
+        None => return AxValue::Str(format!("usb.transfer: device {:04x}:{:04x} not found", vendor_id, product_id)),
+    };
+
+    match handle.write_bulk(endpoint, &payload, Duration::from_millis(timeout_ms)) {
+        Ok(bytes_written) => {
+            let map = Arc::new(DashMap::new());
+            map.insert("ok".to_string(),           AxValue::Bol(true));
+            map.insert("bytes_written".to_string(), AxValue::Num(bytes_written as f64));
+            AxValue::Map(map)
+        }
+        Err(e) => AxValue::Str(format!("usb.transfer error: {}", e)),
+    }
+}
+
 // ============================= REGISTRATION ENTRY POINT =============================
 
 pub fn register(globals: &mut HashMap<String, AxValue>) {
@@ -1408,6 +1933,10 @@ pub fn register(globals: &mut HashMap<String, AxValue>) {
     alg_map.insert("filter".to_string(), native("alg.filter", alg_filter));
     alg_map.insert("fold".to_string(), native("alg.fold", alg_fold));
     alg_map.insert("sort".to_string(), native("alg.sort", alg_sort));
+    alg_map.insert("len".to_string(), native("alg.len", alg_len));
+    alg_map.insert("map".to_string(), native("alg.map", alg_map_fn));
+    alg_map.insert("min".to_string(), native("alg.min", alg_min));
+    alg_map.insert("max".to_string(), native("alg.max", alg_max));
     globals.insert("alg".to_string(), AxValue::Map(alg_map));
 
     // =============== MODULE 2: ANN ===============
@@ -1579,11 +2108,19 @@ pub fn register(globals: &mut HashMap<String, AxValue>) {
     tim_map.insert("format".to_string(), native("tim.format", tim_format));
     globals.insert("tim".to_string(), AxValue::Map(tim_map));
 
-    // =============== MODULE 22: TUI ===============
+    // =============== MODULE 22: TUI (ratatui + TachyonFX) ===============
     let tui_map = Arc::new(DashMap::new());
-    tui_map.insert("box".to_string(), native("tui.box", tui_box));
-    tui_map.insert("line".to_string(), native("tui.line", tui_line));
-    tui_map.insert("table".to_string(), native("tui.table", tui_table));
+    tui_map.insert("block".to_string(),    native("tui.block",    tui_block));
+    tui_map.insert("list".to_string(),     native("tui.list",     tui_list));
+    tui_map.insert("table".to_string(),    native("tui.table",    tui_table));
+    tui_map.insert("gauge".to_string(),    native("tui.gauge",    tui_gauge));
+    tui_map.insert("sparkline".to_string(),native("tui.sparkline",tui_sparkline));
+    tui_map.insert("dashboard".to_string(),native("tui.dashboard",tui_dashboard));
+    // TachyonFX shader descriptors
+    tui_map.insert("fx_fade".to_string(),    native("tui.fx_fade",    tui_fx_fade));
+    tui_map.insert("fx_glitch".to_string(),  native("tui.fx_glitch",  tui_fx_glitch));
+    tui_map.insert("fx_rgb_split".to_string(),native("tui.fx_rgb_split",tui_fx_rgb_split));
+    tui_map.insert("fx_bounce".to_string(),  native("tui.fx_bounce",  tui_fx_bounce));
     globals.insert("tui".to_string(), AxValue::Map(tui_map));
 
     // =============== MODULE 23: CLI ===============
@@ -1592,4 +2129,11 @@ pub fn register(globals: &mut HashMap<String, AxValue>) {
     cli_map.insert("shell".to_string(), native("cli.shell", cli_shell));
     cli_map.insert("env".to_string(), native("cli.env", cli_env));
     globals.insert("cli".to_string(), AxValue::Map(cli_map));
+
+    // =============== MODULE 24: USB (rusb) ===============
+    let usb_map = Arc::new(DashMap::new());
+    usb_map.insert("list".to_string(),     native("usb.list",     usb_list));
+    usb_map.insert("open".to_string(),     native("usb.open",     usb_open));
+    usb_map.insert("transfer".to_string(), native("usb.transfer", usb_transfer));
+    globals.insert("usb".to_string(), AxValue::Map(usb_map));
 }

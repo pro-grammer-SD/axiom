@@ -204,26 +204,31 @@ fn deploy_binary(bin_dir: &Path) {
     };
 
     let binary_name = if cfg!(target_os = "windows") { "axiom.exe" } else { "axiom" };
+    // V4.0 spec: also install as `axm` (short alias)
+    let alias_name  = if cfg!(target_os = "windows") { "axm.exe"   } else { "axm"   };
+
     let mut candidate = out_dir.as_path();
 
     for _ in 0..8 {
         let bin_path = candidate.join(binary_name);
         if bin_path.exists() {
+            // Install as `axiom`
             let dest = bin_dir.join(binary_name);
             match fs::copy(&bin_path, &dest) {
                 Ok(_) => {
                     println!("cargo:warning=Deployed {} → {}", bin_path.display(), dest.display());
-                    #[cfg(unix)]
-                    {
-                        use std::os::unix::fs::PermissionsExt;
-                        if let Ok(meta) = fs::metadata(&dest) {
-                            let mut perms = meta.permissions();
-                            perms.set_mode(0o755);
-                            let _ = fs::set_permissions(&dest, perms);
-                        }
-                    }
+                    set_executable(&dest);
                 }
                 Err(e) => println!("cargo:warning=Binary copy failed: {}", e),
+            }
+            // Also install as `axm` (short alias per V4.0 spec)
+            let axm_dest = bin_dir.join(alias_name);
+            match fs::copy(&bin_path, &axm_dest) {
+                Ok(_) => {
+                    println!("cargo:warning=Alias  {} → {}", bin_path.display(), axm_dest.display());
+                    set_executable(&axm_dest);
+                }
+                Err(e) => println!("cargo:warning=axm alias copy failed: {}", e),
             }
             return;
         }
@@ -232,7 +237,21 @@ fn deploy_binary(bin_dir: &Path) {
             None => break,
         };
     }
-    println!("cargo:warning=Note: run `cargo install --path .` for global axiom install");
+    println!("cargo:warning=Note: run `cargo install --path .` for global axiom/axm install");
+}
+
+fn set_executable(path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = fs::metadata(path) {
+            let mut perms = meta.permissions();
+            perms.set_mode(0o755);
+            let _ = fs::set_permissions(path, perms);
+        }
+    }
+    #[cfg(windows)]
+    let _ = path; // No chmod on Windows
 }
 
 fn ensure_path_contains(bin_dir: &Path) {

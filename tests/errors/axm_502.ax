@@ -1,0 +1,7 @@
+// AXM_502 — USB device error: non-existent device
+// Vendor ID 0xDEAD / Product ID 0xBEEF does not exist on any real machine.
+// usb.open() raises AXM_502 when the device is not found.
+// Expected diagnostic: [AXM_502] USB device not found: 0xDEAD:0xBEEF
+
+let handle = usb.open(0xDEAD, 0xBEEF)
+print(handle)

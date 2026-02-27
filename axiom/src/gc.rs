@@ -60,7 +60,7 @@ pub struct ObjHeader {
 pub enum ObjKind {
     AxString  = 0,
     AxList    = 1,
-    axiomap     = 2,
+    AxioMap   = 2,
     AxClosure = 3,
     AxInstance= 4,
     AxProto   = 5,

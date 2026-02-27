@@ -1,0 +1,7 @@
+// AXM_101 — Unrecognized character
+// The § symbol is not part of the Axiom character set.
+// Expected diagnostic: [AXM_101] Unrecognized character '§' at line 4, col 5
+
+let x = 42
+let y = § + x
+print(y)

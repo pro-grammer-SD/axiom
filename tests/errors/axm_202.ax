@@ -1,0 +1,10 @@
+// AXM_202 — Argument count mismatch
+// add() expects 2 arguments, called with 3.
+// Expected diagnostic: [AXM_202] Expected 2 arguments, got 3
+
+fn add(a, b) {
+    return a + b
+}
+
+let result = add(1, 2, 3)
+print(result)

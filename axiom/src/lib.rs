@@ -66,6 +66,9 @@ pub mod core;
 // ── Package management ────────────────────────────────────────────────────────
 pub mod pkg;
 
+// ── Diagnostics (error codes AXM_100-699) ─────────────────────────────────────
+pub mod diagnostics;
+
 // ── Public re-exports ─────────────────────────────────────────────────────────
 pub use ast::Item;
 pub use chk::SemanticAnalyzer;

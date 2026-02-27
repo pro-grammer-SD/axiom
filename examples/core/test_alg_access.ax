@@ -1,0 +1,7 @@
+// Simple test to see if alg module is accessible
+out("Testing alg module access...");
+out(alg);
+out("Testing alg.range...");
+let nums = alg.range(5);
+out("Range result:");
+out(nums);

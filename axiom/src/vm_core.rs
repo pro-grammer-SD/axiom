@@ -153,9 +153,10 @@ pub enum VmFun {
         func: Box<dyn Fn(&[Val]) -> Result<Val, RuntimeError> + Send + Sync>,
     },
     Compiled {
-        name:   String,
-        params: usize,
-        proto:  Arc<Proto>,
+        name:      String,
+        params:    usize,
+        proto:     Arc<Proto>,
+        upvalues:  Vec<Val>,
     },
 }
 
@@ -181,6 +182,8 @@ struct Frame {
     ip:      usize,
     /// Which register of the **caller** should receive the return value
     ret_reg: usize,
+    /// Captured upvalues for closures
+    upvalues: Vec<Val>,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -261,6 +264,14 @@ impl VmCore {
                     .collect();
                 Val::List(Arc::new(Mutex::new(items)))
             }
+            AxValue::Map(dash_map) => {
+                // Convert DashMap to HashMap for the VM
+                let mut hmap = HashMap::new();
+                for entry in dash_map.iter() {
+                    hmap.insert(entry.key().clone(), VmCore::ax_to_val(entry.value()));
+                }
+                Val::Map(Arc::new(Mutex::new(hmap)))
+            }
             _ => Val::Nil,
         }
     }
@@ -288,10 +299,11 @@ impl VmCore {
     pub fn run(&mut self, proto: Arc<Proto>) -> Result<Val, RuntimeError> {
         let nregs = (proto.reg_count as usize + 32).max(64);
         self.frames.push(Frame {
-            regs:    vec![Val::Nil; nregs],
+            regs:     vec![Val::Nil; nregs],
             proto,
-            ip:      0,
-            ret_reg: 0,
+            ip:       0,
+            ret_reg:  0,
+            upvalues: vec![],
         });
 
         loop {
@@ -621,7 +633,7 @@ impl VmCore {
                                 let result = func(&args)?;
                                 self.frames[frame_idx].regs[a] = result;
                             }
-                            VmFun::Compiled { proto, params, .. } => {
+                            VmFun::Compiled { proto, params, upvalues, .. } => {
                                 let nregs = (proto.reg_count as usize + 32).max(64);
                                 let mut regs = vec![Val::Nil; nregs];
                                 for (i, arg) in args.into_iter().enumerate() {
@@ -632,19 +644,21 @@ impl VmCore {
                                     proto: Arc::clone(proto),
                                     ip:      0,
                                     ret_reg: a,
+                                    upvalues: upvalues.clone(),
                                 });
                                 continue; // skip frame_idx update — new frame is now active
                             }
                         }
                         Val::Nil => {
-                            return Err(RuntimeError::GenericError {
-                                message: "Attempt to call nil value".into(),
+                            // AXM_402 — Attempt to call nil value (undefined identifier)
+                            return Err(RuntimeError::NilCall {
+                                hint: "Value resolved to nil — check parent-scope identifier binding (AXM_402)".into(),
                                 span: Default::default(),
                             });
                         }
                         other => {
-                            return Err(RuntimeError::GenericError {
-                                message: format!("Not callable: {}", other.type_name()),
+                            return Err(RuntimeError::NotCallable {
+                                type_name: other.type_name().into(),
                                 span: Default::default(),
                             });
                         }
@@ -670,7 +684,7 @@ impl VmCore {
                                 }
                                 self.frames.last_mut().unwrap().regs[ret_reg] = result;
                             }
-                            VmFun::Compiled { proto, params, .. } => {
+                            VmFun::Compiled { proto, params, upvalues, .. } => {
                                 // Reuse current frame (real tail-call optimization)
                                 let nregs = (proto.reg_count as usize + 32).max(64);
                                 let mut new_regs = vec![Val::Nil; nregs];
@@ -679,10 +693,11 @@ impl VmCore {
                                 }
                                 let ret_reg = self.frames[frame_idx].ret_reg;
                                 self.frames[frame_idx] = Frame {
-                                    regs:    new_regs,
-                                    proto:   Arc::clone(proto),
-                                    ip:      0,
+                                    regs:     new_regs,
+                                    proto:    Arc::clone(proto),
+                                    ip:       0,
                                     ret_reg,
+                                    upvalues: upvalues.clone(),
                                 };
                                 continue;
                             }
@@ -727,10 +742,34 @@ impl VmCore {
                     match sub_proto {
                         Some(p) => {
                             let params = p.param_count as usize;
+                            // Capture upvalues for this closure
+                            let mut captured_upvals = Vec::new();
+                            let parent_frame = &self.frames[frame_idx];
+                            for upval_desc in &p.upvals {
+                                let captured_val = if upval_desc.in_stack {
+                                    // Capture from parent's local register
+                                    let idx = upval_desc.idx as usize;
+                                    if idx < parent_frame.regs.len() {
+                                        parent_frame.regs[idx].clone()
+                                    } else {
+                                        Val::Nil
+                                    }
+                                } else {
+                                    // Capture from parent's upvalue
+                                    let idx = upval_desc.idx as usize;
+                                    if idx < parent_frame.upvalues.len() {
+                                        parent_frame.upvalues[idx].clone()
+                                    } else {
+                                        Val::Nil
+                                    }
+                                };
+                                captured_upvals.push(captured_val);
+                            }
                             let fun = VmFun::Compiled {
-                                name:   p.source.clone(),
+                                name:      p.source.clone(),
                                 params,
-                                proto:  Arc::new(p),
+                                proto:     Arc::new(p),
+                                upvalues:  captured_upvals,
                             };
                             self.frames[frame_idx].regs[a] = Val::Fun(Arc::new(fun));
                         }
@@ -845,7 +884,33 @@ impl VmCore {
                 // Quickened opcodes — fall through to generic path
                 Op::Unquicken => {}
 
-                // Everything else — silently skip (handles LoadUpval, StoreUpval, etc.)
+                // ── Upvalue access ────────────────────────────────────────────────
+                //
+                // LoadUpval A, B  →  R[A] = UV[B]
+                //
+                Op::LoadUpval => {
+                    let upval_idx = b as usize;
+                    if upval_idx < self.frames[frame_idx].upvalues.len() {
+                        let upval = self.frames[frame_idx].upvalues[upval_idx].clone();
+                        self.frames[frame_idx].regs[a] = upval;
+                    } else {
+                        self.frames[frame_idx].regs[a] = Val::Nil;
+                    }
+                }
+
+                // StoreUpval A, B  →  UV[B] = R[A]
+                //
+                Op::StoreUpval => {
+                    let upval_idx = b as usize;
+                    let val = self.frames[frame_idx].regs[a].clone();
+                    if upval_idx < self.frames[frame_idx].upvalues.len() {
+                        self.frames[frame_idx].upvalues[upval_idx] = val;
+                    }
+                }
+
+                Op::CloseUpval => {} // upvalue closing — not needed in our design
+
+                // Everything else — silently skip
                 _ => {}
             }
         }

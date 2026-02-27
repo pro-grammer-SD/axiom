@@ -1,0 +1,8 @@
+// Test basic built-in functions to isolate VM behavior
+out("Starting test...");
+let x = 5;
+out("x = " + str(x));
+out("Calling sqrt...");
+let s = sqrt(25);
+out("sqrt(25) = " + str(s));
+out("Done");

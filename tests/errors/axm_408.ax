@@ -1,0 +1,10 @@
+// AXM_408 — Stack overflow via infinite recursion (no TCO)
+// infinite() calls itself without a base case.
+// The VM heap-guard fires AXM_408 when the frame stack exceeds the limit.
+// Expected diagnostic: [AXM_408] Call stack overflow — frame limit reached
+
+fn infinite(n) {
+    return infinite(n + 1)
+}
+
+infinite(0)

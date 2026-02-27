@@ -1,0 +1,6 @@
+// AXM_601 — Module not found
+// "phantom_module" is not installed in ~/.axiomlibs/.
+// Expected diagnostic: [AXM_601] Module 'phantom_module' not found — run: axiom pkg install phantom_module
+
+load @phantom_module/core
+print("Should not reach here")

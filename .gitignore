@@ -1,19 +1,25 @@
-# Rust
+# --- Rust ---
 /target
-/Cargo.lock
+Cargo.lock
 
-# Logs
+# --- Logs ---
 *.log
 *.txt
 !INFO.TXT
 
-# Archives
+# --- Archives ---
 *.zip
 
-# OS
+# --- OS ---
 .DS_Store
 Thumbs.db
 
-# IDEs
+# --- IDEs ---
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# --- Miscellaneous ---
+*.png
+.env
