@@ -26,3 +26,5 @@ fn demo_methods_with_keywords() {
 }
 
 main();
+demo_simple_lambda();
+demo_methods_with_keywords();
