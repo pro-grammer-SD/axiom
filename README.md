@@ -261,11 +261,14 @@ cargo test
 
 ## Documentation
 
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — System design and bytecode format
-- [LANGUAGE.md](docs/LANGUAGE.md) — Full language specification
-- [MODULE_REFERENCE.md](docs/MODULE_REFERENCE.md) — Detailed API documentation
-- [MONOLITH_STATUS.md](docs/MONOLITH_STATUS.md) — Migration from modular to monolithic
-- [EXAMPLES.md](docs/EXAMPLES.md) — Code samples for all features
+* **[getting-started.md](https://www.google.com/search?q=docs/getting-started.md)** — Installation and your first Axiom script
+* **[syntax-ref.md](https://www.google.com/search?q=docs/syntax-ref.md)** — Quick reference for operators, keywords, and types
+* **[config-tuning.md](https://www.google.com/search?q=docs/config-tuning.md)** — Performance optimization and stack configuration
+* **[package-management.md](https://www.google.com/search?q=docs/package-management.md)** — Using the Axiom package manager (`pkg`)
+* **[monolith-intrinsics.md](https://www.google.com/search?q=docs/monolith-intrinsics.md)** — Documentation for core built-in functions
+* **[latest-fixes.md](https://www.google.com/search?q=docs/latest-fixes.md)** — Recent stability updates and bug squashing
+
+---
 
 ## Examples
 
